@@ -16,6 +16,9 @@ sealed class DomainError(val message: String) {
     class ClientNotFound(val id: String) :
         DomainError("Client $id not found")
 
+    class InvoiceNotFound(val id: InvoiceId) :
+        DomainError("Invoice ${id.value} not found")
+
     class InvoiceNotCancellable(val number: InvoiceNumber) :
         DomainError("Invoice ${number.value} cannot be cancelled without credit note")
 

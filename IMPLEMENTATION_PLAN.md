@@ -37,6 +37,8 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 8.1** (EventDispatcher) — Done. `EventDispatcher` class in `application/EventDispatcher.kt`. `register(suspend (DomainEvent) -> Unit)` adds handlers. `dispatch(List<DomainEvent>)` calls all handlers for each event sequentially in registration order. 4 unit tests: two handlers receive all events, registration order preserved, no-handler no-op, empty event list calls no handlers.
 - **Phase 8.2** (Create Invoice Use Case) — Done. `CreateInvoice` use case in `application/invoicing/`. `PdfPort` interface added to `domain/port/` (generateInvoice, generateCreditNote); `PdfGenerator` now implements `PdfPort`. Use case: resolves or creates client by name, gets next sequential invoice number via `InvoiceNumbering.next()` + repository, calls `Invoice.create()` factory, checks for duplicates (same client+amount within 48h via `findByClientAndAmountSince`), generates PDF via `PdfPort`, persists, dispatches empty event list. Returns `CreateInvoiceResult.Created` or `CreateInvoiceResult.DuplicateWarning`. 7 unit tests with in-memory stubs: happy path, new client creation, existing client reuse, sequential numbering, duplicate warning, user-not-found error, empty-line-items error, PDF included in result.
 
+- **Phase 8.3** (Send Invoice Use Case) — Done. `SendInvoice` use case in `application/invoicing/`. `DomainError.InvoiceNotFound` added to domain. Use case: loads user (rejects if missing), checks SIREN present (`SirenRequired`), loads invoice (`InvoiceNotFound` if missing), loads client (`ClientNotFound` if missing), checks client has email (`ProfileIncomplete`), regenerates PDF via `PdfPort`, transitions invoice Draft→Sent via `invoice.send()`, sends email via `EmailPort`, persists updated invoice, dispatches `InvoiceSent` event. Returns `SendInvoiceResult(invoice, pdf)`. 10 unit tests: happy path (Sent status + persisted), email recipient/subject/filename, PDF in result, InvoiceSent event dispatched, SirenRequired error, user-not-found, invoice-not-found, client-no-email, invalid-transition (already Sent), email delivery failure.
+
 ---
 
 ## Phase 7: Infrastructure — External APIs
@@ -44,19 +46,6 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 ---
 
 ## Phase 8: Application Layer — Core Use Cases
-
-### 8.3 Send Invoice Use Case
-- **Layer:** application
-- **Spec:** mvp-spec S4, tech-spec S2.5
-- **What:** Implement `SendInvoice` use case. Validates user profile completeness (SIREN required). Sends email via `EmailPort`. Transitions invoice Draft->Sent. Re-generates PDF if invoice was modified since creation.
-- **Acceptance criteria:**
-  - [ ] Rejects if user has no SIREN (returns `SirenRequired` error)
-  - [ ] Sends email with PDF attachment
-  - [ ] Transitions invoice to Sent status via `invoice.send()`
-  - [ ] Persists updated invoice
-  - [ ] Dispatches `InvoiceSent` event
-  - [ ] Unit test with mocked ports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
 ### 8.4 Mark Invoice Paid Use Case
 - **Layer:** application
