@@ -27,4 +27,7 @@ sealed class DomainError(val message: String) {
 
     class ProfileIncomplete(val missing: List<String>) :
         DomainError("Missing: ${missing.joinToString()}")
+
+    class EmailDeliveryFailed(val statusCode: Int, val responseBody: String) :
+        DomainError("Email delivery failed with HTTP $statusCode: $responseBody")
 }

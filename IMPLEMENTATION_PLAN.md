@@ -30,18 +30,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 6.2** (PDF Invoice Generation) — Done. `PdfGenerator` object in `infrastructure/pdf/`. Generates A4 PDFs with all mandatory French legal mentions: issue date, invoice number, seller info (name, EI, SIREN, address), buyer info, line items table (description, qty, unit price HT, total HT), totals HT/TTC, TVA non-applicable mention, payment terms and due date, late payment penalties, payment method (if paid), IBAN section (if provided). Draft invoices get "BROUILLON" watermark (45°, light gray, drawn as background layer). Amounts formatted in French currency (e.g., "800,00 EUR") using integer arithmetic. Returns ByteArray. 7 integration tests (all status variants, with/without IBAN, with/without SIREN, multi-line items) using `Loader.loadPDF()`. Note: Payment method on invoice PDFs is only shown for `InvoiceStatus.Paid` since the current Invoice domain model only stores payment method in that status — this is consistent with the existing domain model.
 - **Phase 6.3** (Credit Note PDF Generation) — Done. `generateCreditNote(creditNote, originalInvoiceNumber, user, client, plainIban)` added to `PdfGenerator`. Generates A4 PDFs with: "AVOIR" title, credit note number, issue date, reference to original invoice number, seller block, buyer block, amount line (description from reason or default, negative HT amount), totals HT/TTC, TVA non-applicable mention, mandatory late-payment penalty mentions, optional IBAN section. Blank reason falls back to "Annulation facture [originalInvoiceNumber]". 5 integration tests covering: basic PDF, with reason, with IBAN, without user SIREN, blank reason fallback.
 
-### 6.4 Resend Email Adapter
-- **Layer:** infrastructure
-- **Spec:** tech-spec S10 (Resend)
-- **What:** Implement `ResendEmailAdapter` in `infrastructure/email/` implementing `EmailPort`. Uses java.net.http to call Resend HTTP API. Send email with PDF attachment. Handle delivery failures.
-- **Acceptance criteria:**
-  - [ ] Implements `EmailPort` interface
-  - [ ] Calls Resend HTTP API with correct payload (to, from, subject, body, attachment)
-  - [ ] API key loaded from `RESEND_API_KEY` environment variable
-  - [ ] Sender address configurable (default: `factures@mona-app.fr`)
-  - [ ] Returns `Err` on HTTP failure
-  - [ ] Unit test with mocked HTTP responses (success and failure)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 6.4** (Resend Email Adapter) — Done. `ResendEmailAdapter` in `infrastructure/email/` implementing `EmailPort`. Uses `java.net.http` + `kotlinx-serialization-json` (no new deps). Internal `HttpExecutor` fun interface enables test injection. PDF base64-encoded in Resend attachment payload. `fromEnv()` factory loads `RESEND_API_KEY`. `DomainError.EmailDeliveryFailed` added to domain. Primary constructor marked `internal` (module-visible) to keep `HttpExecutor` internal. 6 unit tests: Ok on 200, Err on 422 and 500, base64 encoding verified, recipient/sender verified, API key propagation verified.
 
 ---
 
