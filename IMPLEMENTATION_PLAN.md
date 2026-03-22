@@ -6,158 +6,18 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ---
 
-## Phase 1: Project Scaffolding
+## Completed Phases
 
-### 1.1 Gradle Project Setup
-- **Layer:** all
-- **Spec:** tech-spec S1
-- **What:** Initialize Gradle Kotlin DSL project with JVM 21 target. Configure dependencies: Exposed (DAO + SQLite), TelegramBotAPI, PDFBox, sqlite-jdbc, kotlinx-coroutines, kotlinx-datetime, Shadow plugin, ktlint. Set up `src/main/kotlin/mona/` and `src/test/kotlin/mona/` directory trees matching CLAUDE.md project structure. Add a minimal `App.kt` with a `main()` that prints "Mona starting". Add a trivial test that passes.
-- **Acceptance criteria:**
-  - [ ] `build.gradle.kts` with all approved dependencies, JVM 21 target, Shadow plugin
-  - [ ] Directory structure matches CLAUDE.md (`domain/model`, `domain/service`, `domain/port`, `infrastructure/db`, `infrastructure/telegram`, `infrastructure/llm`, `infrastructure/pdf`, `infrastructure/email`, `infrastructure/sirene`, `infrastructure/crypto`, `application/onboarding`, `application/invoicing`, `application/payment`, `application/revenue`, `application/urssaf`)
-  - [ ] `App.kt` exists at `src/main/kotlin/mona/App.kt`
-  - [ ] At least one passing test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-  - [ ] `./gradlew shadowJar` produces a fat JAR
-
----
-
-## Phase 2: Domain Model — Value Objects & Core Types
-
-### 2.1 DomainResult and DomainError
-- **Layer:** domain
-- **Spec:** tech-spec S2.1
-- **What:** Implement `DomainResult<T>` sealed class with `Ok` and `Err` variants. Add `map` and `flatMap` extension functions. Implement `DomainError` sealed hierarchy with all error cases from the spec (`InvalidTransition`, `InvoiceNumberGap`, `EmptyLineItems`, `NegativeAmount`, `ClientNotFound`, `InvoiceNotCancellable`, `CreditNoteAmountMismatch`, `SirenRequired`, `ProfileIncomplete`).
-- **Acceptance criteria:**
-  - [ ] `domain/model/DomainResult.kt` with `Ok`, `Err`, `map`, `flatMap`
-  - [ ] `domain/model/DomainError.kt` with all sealed subclasses
-  - [ ] Unit tests: `map` on Ok propagates, `map` on Err short-circuits, `flatMap` chains correctly, `flatMap` short-circuits on Err
-  - [ ] Zero framework imports in domain files
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 2.2 Value Objects
-- **Layer:** domain
-- **Spec:** tech-spec S2.2
-- **What:** Implement all value objects in `domain/model/values.kt`: `Cents` (with `plus`, `minus`, `times`, `isNegative`, `isZero`, `ZERO` companion), `Siren` (9-digit validation), `Siret` (14-digit validation, `siren` property), `Email` (basic validation), `PostalAddress` (data class with `formatted()`), `PaymentDelayDays` (1-60 range), `DeclarationPeriod` (with `monthly` and `quarterly` factories), `InvoiceId`, `ClientId`, `UserId`, `InvoiceNumber`, `CreditNoteNumber`.
-- **Acceptance criteria:**
-  - [ ] All value objects as inline value classes (except `PostalAddress`, `DeclarationPeriod`)
-  - [ ] `Cents` arithmetic uses `Math.addExact`/`subtractExact`/`multiplyExact` — overflow throws `ArithmeticException`
-  - [ ] `Siren` rejects non-9-digit input
-  - [ ] `Siret` rejects non-14-digit input, `.siren` extracts first 9
-  - [ ] `Email` rejects strings without `@` or shorter than 5 chars
-  - [ ] `PaymentDelayDays` rejects values outside 1-60
-  - [ ] `DeclarationPeriod.monthly()` and `.quarterly()` produce correct date ranges
-  - [ ] Unit tests for all validation rules and arithmetic edge cases (including Cents overflow)
-  - [ ] Zero framework imports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 2.3 Enums and InvoiceStatus FSM
-- **Layer:** domain
-- **Spec:** tech-spec S2.3
-- **What:** Implement `PaymentMethod`, `ActivityType`, `DeclarationPeriodicity` enums. Implement `InvoiceStatus` sealed class with `Draft`, `Sent`, `Paid(date, method)`, `Overdue`, `Cancelled`.
-- **Acceptance criteria:**
-  - [ ] `PaymentMethod` enum: VIREMENT, CHEQUE, ESPECES, CARTE, AUTRE
-  - [ ] `ActivityType` enum: BIC_VENTE, BIC_SERVICE, BNC
-  - [ ] `DeclarationPeriodicity` enum: MONTHLY, QUARTERLY
-  - [ ] `InvoiceStatus` sealed class with all five variants
-  - [ ] `Paid` carries `date: LocalDate` and `method: PaymentMethod`
-  - [ ] Zero framework imports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
----
-
-## Phase 3: Domain Model — Aggregates & Entities
-
-### 3.1 DomainEvent, TransitionResult, LineItem, CreditNote
-- **Layer:** domain
-- **Spec:** tech-spec S2.5
-- **What:** Implement `DomainEvent` sealed class with all five event types (`InvoiceSent`, `InvoicePaid`, `InvoiceOverdue`, `InvoiceCancelled`, `DraftDeleted`). Implement `TransitionResult(invoice, events)`. Implement `LineItem` data class with `description`, `quantity` (BigDecimal), `unitPriceHt` (Cents), computed `totalHt`. Implement `CreditNote` data class with number, amount, reason, issueDate, replacementInvoiceId, pdfPath.
-- **Acceptance criteria:**
-  - [ ] `DomainEvent` sealed class with all five event types, each carrying `occurredAt: Instant`
-  - [ ] `InvoicePaid` carries amount, paidDate, method, activityType
-  - [ ] `InvoiceCancelled` carries optional creditNote
-  - [ ] `TransitionResult` holds invoice + events list
-  - [ ] `LineItem.totalHt` computes `quantity * unitPriceHt` with HALF_UP rounding
-  - [ ] `CreditNote` data class with all fields from tech-spec
-  - [ ] Unit tests for LineItem totalHt calculation (integer quantity, fractional quantity, rounding)
-  - [ ] Zero framework imports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 3.2 Invoice Aggregate Root
-- **Layer:** domain
-- **Spec:** tech-spec S2.5
-- **What:** Implement `Invoice` data class with all fields, computed `amountHt`, and aggregate methods: `send()`, `markPaid()`, `markOverdue()`, `cancel()`. Implement `Invoice.create()` companion factory that validates invariants and returns `DomainResult<Invoice>`.
-- **Acceptance criteria:**
-  - [ ] `Invoice.amountHt` sums all line item totals
-  - [ ] `Invoice.create()` rejects empty line items, zero/negative totals, invalid invoice numbers
-  - [ ] `Invoice.create()` returns Draft status
-  - [ ] `send()`: Draft->Sent succeeds, emits `InvoiceSent`; non-Draft fails with `InvalidTransition`
-  - [ ] `markPaid()`: Draft/Sent/Overdue->Paid succeeds, emits `InvoicePaid`; Paid/Cancelled fails
-  - [ ] `markOverdue()`: Sent->Overdue succeeds, emits `InvoiceOverdue`; non-Sent fails
-  - [ ] `cancel()`: Draft->Cancelled (no credit note needed), emits `DraftDeleted`; Sent/Overdue/Paid->Cancelled requires credit note, emits `InvoiceCancelled`; missing credit note for non-draft fails with `InvoiceNotCancellable`
-  - [ ] All transition methods return `DomainResult<TransitionResult>`
-  - [ ] Comprehensive unit tests for every valid and invalid transition
-  - [ ] Zero framework imports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 3.3 Invoice Numbering
-- **Layer:** domain
-- **Spec:** tech-spec S2.6, mvp-spec S2.7
-- **What:** Implement `InvoiceNumbering` object with `next()`, `validate()`, `isContiguous()`. Implement `CreditNoteNumbering` object with `next()`. Format: `F-YYYY-MM-NNN` for invoices, `A-YYYY-MM-NNN` for credit notes.
-- **Acceptance criteria:**
-  - [ ] `next(yearMonth, null)` returns `F-YYYY-MM-001`
-  - [ ] `next(yearMonth, F-2026-03-005)` returns `F-2026-03-006`
-  - [ ] `validate()` accepts valid format, rejects invalid
-  - [ ] `isContiguous()` detects gaps
-  - [ ] Sequence overflow (>999) returns error
-  - [ ] `CreditNoteNumbering.next()` follows same logic with `A-` prefix
-  - [ ] Unit tests for all cases including month rollover
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 3.4 User and Client Domain Models
-- **Layer:** domain
-- **Spec:** tech-spec S3 (User, Client tables)
-- **What:** Implement `User` data class with all fields from the data model: id (UserId), telegramId, email, name, siren, siret, address (PostalAddress?), ibanEncrypted, activityType, declarationPeriodicity, confirmBeforeCreate, defaultPaymentDelayDays, createdAt. Implement `Client` data class: id (ClientId), userId, name, email, address, companyName, siret, createdAt.
-- **Acceptance criteria:**
-  - [ ] `User` uses typed value objects (`UserId`, `Email?`, `Siren?`, `Siret?`, `PostalAddress?`, `ActivityType?`, `DeclarationPeriodicity?`, `PaymentDelayDays`)
-  - [ ] `Client` uses typed value objects (`ClientId`, `UserId`, `Email?`, `PostalAddress?`, `Siret?`)
-  - [ ] Both are plain data classes with no behavior beyond accessors
-  - [ ] Zero framework imports
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
----
-
-## Phase 4: Domain Services & Ports
-
-### 4.1 Revenue Calculation and URSSAF Thresholds
-- **Layer:** domain
-- **Spec:** tech-spec S2.7, S2.8
-- **What:** Implement `PaidInvoiceSnapshot` and `CreditNoteSnapshot` read-model types. Implement `RevenueCalculation.compute()` producing `RevenueBreakdown` (total + byActivity). Implement `UrssafThresholds.checkTvaThreshold()` (80%/95% alerts) and `nextDeclarationDeadline()` (monthly/quarterly).
-- **Acceptance criteria:**
-  - [ ] `RevenueCalculation.compute()` sums paid invoices, offsets credit notes, breaks down by activity type
-  - [ ] Handles empty input (zero revenue)
-  - [ ] `UrssafThresholds.checkTvaThreshold()` returns `ThresholdAlert` at 80%+ of threshold, null below
-  - [ ] Correct thresholds: Services/BNC = 36,800 EUR, Sales = 91,900 EUR
-  - [ ] `nextDeclarationDeadline()`: monthly = end of following month; quarterly = end of month after quarter end
-  - [ ] Unit tests for all calculation paths, edge cases, mixed activities
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 4.2 Repository Ports and MessagingPort
-- **Layer:** domain
-- **Spec:** tech-spec S2.10, S5
-- **What:** Define `InvoiceRepository`, `ClientRepository`, `UserRepository` interfaces in `domain/port/`. Define `MessagingPort` interface, `IncomingMessage`, `Button`, `MenuItem` data classes. Define `ConversationRepository` interface for persisting last 3 messages. Define `EmailPort` interface. Define `SirenePort` interface.
-- **Acceptance criteria:**
-  - [ ] `InvoiceRepository` with: `findById`, `save`, `delete`, `findLastNumberInMonth`, `findByUser`, `findPaidInPeriod`, `findCreditNotesInPeriod`, `findSentOverdue`, `findByClientAndAmountSince` (for duplicate detection), `findByUserAndStatus`
-  - [ ] `ClientRepository` with: `findById`, `save`, `findByUserAndName`, `findByUser`
-  - [ ] `UserRepository` with: `findById`, `findByTelegramId`, `save`
-  - [ ] `ConversationRepository` with: `save`, `findRecent(userId, limit=3)`
-  - [ ] `MessagingPort` with: `sendMessage`, `sendDocument`, `sendButtons`, `setPersistentMenu`, `onMessage`
-  - [ ] `EmailPort` with: `sendInvoice(to, subject, body, pdfAttachment, filename)`
-  - [ ] `SirenePort` with: `lookupBySiren(siren)`, `searchByNameAndCity(name, city)`
-  - [ ] All interfaces use domain types (not primitives)
-  - [ ] All functions are `suspend`
-  - [ ] Zero framework imports in port files
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 1.1** (Gradle Project Setup) — Done. build.gradle.kts, directory structure, App.kt, shadowJar all working.
+- **Phase 2.1** (DomainResult and DomainError) — Done. Sealed hierarchy with all error types, map/flatMap, unit tests.
+- **Phase 2.2** (Value Objects) — Done. Cents, Siren, Siret, Email, PostalAddress, PaymentDelayDays, DeclarationPeriod, IDs. All unit tested.
+- **Phase 2.3** (Enums and InvoiceStatus FSM) — Done. PaymentMethod, ActivityType, DeclarationPeriodicity, InvoiceStatus sealed class.
+- **Phase 3.1** (DomainEvent, TransitionResult, LineItem, CreditNote) — Done. All event types, LineItem with totalHt, CreditNote. Unit tested.
+- **Phase 3.2** (Invoice Aggregate Root) — Done. Factory, all transitions (send, markPaid, markOverdue, cancel), comprehensive tests.
+- **Phase 3.3** (Invoice Numbering) — Done. InvoiceNumbering and CreditNoteNumbering with next/validate/isContiguous. Unit tested.
+- **Phase 3.4** (User and Client Domain Models) — Done. User and Client data classes with typed value objects.
+- **Phase 4.1** (Revenue Calculation and URSSAF Thresholds) — Done. PaidInvoiceSnapshot, CreditNoteSnapshot, RevenueCalculation, UrssafThresholds. Unit tested.
+- **Phase 4.2** (Repository Ports and MessagingPort) — Done. All ports: InvoiceRepository, ClientRepository, UserRepository, ConversationRepository, MessagingPort, EmailPort, SirenePort.
 
 ---
 

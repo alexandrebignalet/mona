@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="mona.domain.InvoiceTest" tests="20" skipped="0" failures="0" errors="0" timestamp="2026-03-22T13:17:28" hostname="f93a0a81a47a" time="0.028">
+  <properties/>
+  <testcase name="cancel Paid with credit note succeeds()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="markOverdue from Draft fails()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="send from Sent fails()" classname="mona.domain.InvoiceTest" time="0.001"/>
+  <testcase name="cancel Draft without credit note succeeds()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="markPaid from Overdue succeeds()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="markPaid from Cancelled fails()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="markPaid from Paid fails()" classname="mona.domain.InvoiceTest" time="0.001"/>
+  <testcase name="amountHt sums line item totals()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="send from Draft succeeds()" classname="mona.domain.InvoiceTest" time="0.001"/>
+  <testcase name="markOverdue from Sent succeeds()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="markPaid from Draft succeeds()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="create computes correct due date()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="cancel Sent without credit note fails()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="cancel already Cancelled fails()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="create rejects invalid invoice number()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="create returns Draft invoice()" classname="mona.domain.InvoiceTest" time="0.002"/>
+  <testcase name="create rejects zero total()" classname="mona.domain.InvoiceTest" time="0.001"/>
+  <testcase name="markPaid from Sent succeeds()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <testcase name="cancel Sent with credit note succeeds()" classname="mona.domain.InvoiceTest" time="0.001"/>
+  <testcase name="create rejects empty line items()" classname="mona.domain.InvoiceTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

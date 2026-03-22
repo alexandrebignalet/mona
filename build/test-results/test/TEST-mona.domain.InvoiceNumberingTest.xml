@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="mona.domain.InvoiceNumberingTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-03-22T13:17:28" hostname="f93a0a81a47a" time="0.015">
+  <properties/>
+  <testcase name="next increments from last()" classname="mona.domain.InvoiceNumberingTest" time="0.006"/>
+  <testcase name="validate rejects invalid format()" classname="mona.domain.InvoiceNumberingTest" time="0.001"/>
+  <testcase name="month rollover produces correct prefix()" classname="mona.domain.InvoiceNumberingTest" time="0.001"/>
+  <testcase name="isContiguous detects gaps()" classname="mona.domain.InvoiceNumberingTest" time="0.001"/>
+  <testcase name="isContiguous detects consecutive numbers()" classname="mona.domain.InvoiceNumberingTest" time="0.0"/>
+  <testcase name="next returns error on sequence overflow()" classname="mona.domain.InvoiceNumberingTest" time="0.003"/>
+  <testcase name="next returns 001 when no previous()" classname="mona.domain.InvoiceNumberingTest" time="0.0"/>
+  <testcase name="validate accepts valid format()" classname="mona.domain.InvoiceNumberingTest" time="0.0"/>
+  <testcase name="credit note next increments()" classname="mona.domain.InvoiceNumberingTest" time="0.002"/>
+  <testcase name="credit note next returns 001 when no previous()" classname="mona.domain.InvoiceNumberingTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
