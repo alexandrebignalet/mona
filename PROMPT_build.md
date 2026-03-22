@@ -1,4 +1,4 @@
-# Build Prompt — v3 (Token-Optimized)
+# Build Prompt — Mona v1
 
 This prompt governs implementation. Every "MUST" is a hard gate.
 
@@ -13,14 +13,18 @@ This prompt governs implementation. Every "MUST" is a hard gate.
 CLAUDE.md is already injected into system context — do not re-read it.
 Read only IMPLEMENTATION_PLAN.md directly via the Read tool.
 
-### 0b. Read specs/README.md, then relevant specs only
+### 0b. Read relevant specs only
 
-Read `specs/README.md` — it contains summaries and topic lists for every spec file. Based on the plan item you will implement, use the README to identify which spec files are relevant, then read **only those**. Do not read all specs.
+Based on the plan item you will implement, read the spec file most relevant to your task:
+- `specs/mvp-spec.md` — product features, UX flows, conversation design
+- `specs/tech-spec.md` — architecture, data model, integrations
+
+Do not read both unless your task spans product and technical concerns.
 
 ### 0c. Verify source layout
 
 ```bash
-ls src/
+ls src/main/kotlin/mona/ 2>/dev/null || echo "No source yet"
 ```
 
 If layout contradicts CLAUDE.md, resolve before proceeding.
@@ -57,13 +61,13 @@ Delegate to an **Opus subagent with ultrathink** for:
 - Debugging after > 1 failed attempt
 - Spec inconsistency
 
-### UI Stability rule (same weight as DDD — applies to all game components)
+### Architecture layer enforcement (after writing any file)
 
-**Game components must not receive raw socket state as props. They consume stable slices from the adapter hook (`useStableGameState`).** See `specs/13-ui-stability.md`.
-
-### DDD layer enforcement (after writing any file)
-
-Verify no DDD violations per CLAUDE.md rules. Domain files must have zero framework imports.
+Verify no architecture violations per CLAUDE.md rules:
+- Domain files (`domain/`) must have zero framework imports (no Exposed, no TelegramBotAPI, no HTTP clients, no `java.sql`)
+- Domain defines ports (interfaces); infrastructure implements them
+- Application layer is thin orchestration only — no business logic
+- Infrastructure adapters contain no invoice/payment/revenue logic
 
 ### Prevention rules check (before writing code)
 
@@ -72,31 +76,31 @@ Scan the **Prevention Rules** table in IMPLEMENTATION_PLAN.md (already loaded fr
 ### Implementation rules
 
 - Implement completely. No placeholders, stubs, or TODOs.
-- No `any` types, no `as` casts unless justified.
+- No `Any` types, no unchecked casts unless justified.
+- Use value classes (`Cents`, `Siren`, `InvoiceNumber`) — never raw primitives for domain concepts.
+- Use sealed classes for state machines — enforce exhaustive `when` matching.
+- All money arithmetic in `Long` (cents). Never `Double` or `Float` for money.
 - Use Read/Grep/Glob directly for all file reads and searches.
 - Use an Explore subagent only for open-ended multi-file exploration where target files are unknown.
 - Use 1 subagent for build/test (Phase 3).
 
-### Bombadil coverage check
+### Golden test coverage check
 
 **Applies when any changed file matches these paths:**
 
-- `src/components/`
-- `src/infrastructure/ws/`
-- `src/routes/`
-- `src/application/game/`
-- `bombadil/`
+- `infrastructure/llm/` (prompt or tool definition changes)
+- `application/` (new or modified use cases)
+- `domain/service/` (new domain logic that LLM tools interact with)
 
 Before proceeding to Phase 3, answer:
 
 | Question | Action if "yes" |
 |----------|----------------|
-| Does this change add a new user-visible UI element or interaction? | Add or extend a Bombadil action generator in `bombadil/lib/actions.ts` to exercise it. |
-| Does this change add a new piece of game state visible in the DOM? | Add or extend an extractor in `bombadil/lib/extractors.ts` to capture it. |
-| Does this change introduce a new invariant the UI must uphold? | Add a new property in `bombadil/spec.ts` (next P-number). |
-| Does this change modify an existing UI element's `data-testid` or structure? | Update the corresponding selector in `bombadil/lib/selectors.ts` and verify affected properties still compile. |
+| Does this change add a new Claude tool definition? | Add golden test cases in `test/golden/` covering typical inputs and edge cases. |
+| Does this change modify how an existing tool's parameters are parsed? | Update existing golden tests to match new parameter schema. |
+| Does this change add a new user-facing action type? | Add ≥3 golden test cases: happy path, edge case, French slang variant. |
 
-If all answers are "no", skip — no Bombadil changes needed.
+If all answers are "no", skip — no golden test changes needed.
 
 ---
 
@@ -104,37 +108,11 @@ If all answers are "no", skip — no Bombadil changes needed.
 
 **Delegate to an Explore subagent:**
 
-> 1. Write unit tests for new domain services/functions/modules.
-> 2. Run: `npm run typecheck && npm run lint && npm run test`
-> 3. Return structured result: Status (PASS/FAIL), per-command results, new tests written.
+> 1. Write unit tests for new domain services/functions.
+> 2. Run: `./gradlew build && ./gradlew ktlintCheck`
+> 3. Return structured result: Status (PASS/FAIL), per-task results, new tests written.
 
 Do not proceed to Phase 4 until Status: PASS.
-
-### Bombadil compilation gate (always, not conditional)
-
-After unit tests pass, run:
-
-```bash
-npx tsc --noEmit --project bombadil/tsconfig.json 2>/dev/null || npx tsc --noEmit
-```
-
-If the Bombadil spec files have TypeScript errors, fix them before proceeding to Phase 4. This catches broken extractors/selectors from refactored UI without requiring a full Bombadil run locally.
-
-> **Note:** A full `npm run test:bombadil` run is NOT required locally — it requires the Bombadil CLI binary and a running server. The compilation check is the local gate; the full run happens in CI.
-
-### Phase 3b — Conditional Bombadil compilation gate
-
-Run `git diff --name-only HEAD~1` to list changed files. If **any** path matches these prefixes, the Bombadil compilation gate above is especially critical:
-
-- `src/components/`
-- `src/infrastructure/ws/`
-- `src/routes/`
-- `src/application/game/`
-- `bombadil/`
-
-If only `src/domain/`, `src/infrastructure/db/`, `src/data/`, or non-source files changed, the unconditional gate above still runs but failures are less likely.
-
-Do not proceed to Phase 4 until the Bombadil compilation gate passes.
 
 ---
 
