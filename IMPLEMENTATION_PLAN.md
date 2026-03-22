@@ -51,17 +51,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 8.5** (Cancel Invoice and Credit Note Use Cases) — Done. `DeleteDraft`, `CancelInvoice`, `CorrectInvoice` use cases in `application/invoicing/`. `findLastCreditNoteNumberInMonth` added to `InvoiceRepository` port and `ExposedInvoiceRepository`. `DeleteDraft`: calls `invoice.cancel(null)`, deletes from DB (number freed), dispatches `DraftDeleted`. `CancelInvoice`: gets next credit note number, creates `CreditNote`, calls `invoice.cancel(creditNote)`, generates credit note PDF via `PdfPort`, persists, dispatches `InvoiceCancelled`. `CorrectInvoice`: reserves new invoice ID, creates credit note linking to new invoice, cancels original, creates corrected invoice with next number, generates both PDFs, persists both, dispatches `InvoiceCancelled`. Unit tests: 5 for DeleteDraft, 8 for CancelInvoice, 8 for CorrectInvoice.
 
-### 8.6 Update Draft Use Case
-- **Layer:** application
-- **Spec:** mvp-spec S2.4
-- **What:** Implement `UpdateDraft` use case. Allows updating any field on a draft invoice (amount, description, client, line items). Re-generates PDF after update.
-- **Acceptance criteria:**
-  - [ ] Only works on Draft status invoices
-  - [ ] Updates specified fields
-  - [ ] Re-generates PDF
-  - [ ] Persists updated invoice
-  - [ ] Unit test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.6** (Update Draft Use Case) — Done. `UpdateDraft` use case in `application/invoicing/`. `Invoice.updateDraft()` aggregate method added (validates Draft status, validates line items, preserves dueDate delta when only issueDate changes). Use case: loads user, loads invoice, resolves/creates client by name, calls `invoice.updateDraft()`, loads client for PDF, generates PDF, persists, dispatches empty events. Returns `UpdateDraftResult(invoice, pdf)`. `invalidTransition` made generic (`<T>`) to support both `DomainResult<TransitionResult>` and `DomainResult<Invoice>` returns. 10 unit tests: line items update, activity type update, issue date shift, payment delay recompute, existing client resolved, new client created, invoice persisted, InvoiceNotFound, ProfileIncomplete, InvalidTransition on Sent, EmptyLineItems.
 
 ### 8.7 Revenue Query and CSV Export Use Cases
 - **Layer:** application

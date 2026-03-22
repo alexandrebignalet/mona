@@ -74,6 +74,32 @@ data class Invoice(
         )
     }
 
+    /** Updates mutable fields on a DRAFT invoice; status stays Draft. */
+    fun updateDraft(
+        clientId: ClientId = this.clientId,
+        lineItems: List<LineItem> = this.lineItems,
+        issueDate: LocalDate = this.issueDate,
+        paymentDelay: PaymentDelayDays? = null,
+        activityType: ActivityType = this.activityType,
+    ): DomainResult<Invoice> {
+        if (status !is InvoiceStatus.Draft) return invalidTransition("Draft (updateDraft)")
+        if (lineItems.isEmpty()) return DomainResult.Err(DomainError.EmptyLineItems())
+        val total = lineItems.fold(Cents.ZERO) { acc, it -> acc + it.totalHt }
+        if (total.isZero() || total.isNegative()) return DomainResult.Err(DomainError.NegativeAmount(total.value))
+        val delayDays =
+            paymentDelay?.value
+                ?: java.time.temporal.ChronoUnit.DAYS.between(this.issueDate, this.dueDate).toInt()
+        return DomainResult.Ok(
+            copy(
+                clientId = clientId,
+                lineItems = lineItems,
+                issueDate = issueDate,
+                dueDate = issueDate.plusDays(delayDays.toLong()),
+                activityType = activityType,
+            ),
+        )
+    }
+
     /** DRAFT -> CANCELLED (no credit note), SENT|OVERDUE|PAID -> CANCELLED (requires credit note) */
     fun cancel(
         creditNote: CreditNote?,
@@ -105,7 +131,7 @@ data class Invoice(
             else -> DomainResult.Err(DomainError.InvoiceNotCancellable(number))
         }
 
-    private fun invalidTransition(to: String): DomainResult<TransitionResult> = DomainResult.Err(DomainError.InvalidTransition(status, to))
+    private fun <T> invalidTransition(to: String): DomainResult<T> = DomainResult.Err(DomainError.InvalidTransition(status, to))
 
     companion object {
         /** Factory — validates invariants, returns DRAFT invoice */
