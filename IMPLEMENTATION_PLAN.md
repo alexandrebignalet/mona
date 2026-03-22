@@ -24,23 +24,8 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 5.3** (ClientRepository Implementation) — Done. Case-insensitive name search, integration tested.
 - **Phase 5.4** (InvoiceRepository Implementation) — Done. Full aggregate save/load, snapshots, all query methods, integration tested.
 - **Phase 5.5** (ConversationRepository Implementation) — Done. Prune to 3 messages, integration tested.
+- **Phase 6.1** (AES-256-GCM IBAN Encryption) — Done. `IbanCrypto` object with `encrypt`/`decrypt`/`loadKeyFromEnv`. Random IV prepended to ciphertext. Unit tests: round-trip, random IV, wrong-key failure, empty string, size check.
 - **Issue:** SQLite WAL PRAGMA must be set via raw JDBC before Exposed transaction (cannot run PRAGMA inside transaction). Fixed in DatabaseFactory.
-
----
-
-## Phase 6: Infrastructure — Crypto, PDF, Email
-
-### 6.1 AES-256-GCM IBAN Encryption
-- **Layer:** infrastructure
-- **Spec:** tech-spec S7
-- **What:** Implement `IbanCrypto` in `infrastructure/crypto/` with `encrypt(plaintext: String, key: ByteArray): ByteArray` and `decrypt(ciphertext: ByteArray, key: ByteArray): String`. Key is read from environment variable. Generate random IV per encryption. Prepend IV to ciphertext.
-- **Acceptance criteria:**
-  - [ ] Encrypt then decrypt round-trips to original IBAN
-  - [ ] Different encryptions of the same IBAN produce different ciphertext (random IV)
-  - [ ] Decryption with wrong key fails
-  - [ ] Key loaded from `IBAN_ENCRYPTION_KEY` environment variable
-  - [ ] Unit tests for round-trip, wrong key, empty input
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
 ### 6.2 PDF Invoice Generation
 - **Layer:** infrastructure
