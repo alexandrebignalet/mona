@@ -106,6 +106,11 @@ private class InMemoryInvoiceRepository : InvoiceRepository {
 
     override suspend fun findSentOverdue(cutoffDate: LocalDate): List<Invoice> = emptyList()
 
+    override suspend fun findLastCreditNoteNumberInMonth(
+        userId: UserId,
+        yearMonth: YearMonth,
+    ): mona.domain.model.CreditNoteNumber? = null
+
     override suspend fun findByClientAndAmountSince(
         clientId: ClientId,
         amountHt: Cents,

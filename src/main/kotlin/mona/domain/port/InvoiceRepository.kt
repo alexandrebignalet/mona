@@ -2,6 +2,7 @@ package mona.domain.port
 
 import mona.domain.model.Cents
 import mona.domain.model.ClientId
+import mona.domain.model.CreditNoteNumber
 import mona.domain.model.CreditNoteSnapshot
 import mona.domain.model.DeclarationPeriod
 import mona.domain.model.Invoice
@@ -24,6 +25,11 @@ interface InvoiceRepository {
         userId: UserId,
         yearMonth: YearMonth,
     ): InvoiceNumber?
+
+    suspend fun findLastCreditNoteNumberInMonth(
+        userId: UserId,
+        yearMonth: YearMonth,
+    ): CreditNoteNumber?
 
     suspend fun findByUser(userId: UserId): List<Invoice>
 

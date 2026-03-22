@@ -107,6 +107,23 @@ class ExposedInvoiceRepository : InvoiceRepository {
                 ?.let { InvoiceNumber(it[InvoicesTable.invoiceNumber]) }
         }
 
+    override suspend fun findLastCreditNoteNumberInMonth(
+        userId: UserId,
+        yearMonth: YearMonth,
+    ): CreditNoteNumber? =
+        newSuspendedTransaction {
+            val prefix = "A-${yearMonth.year}-${"%02d".format(yearMonth.monthValue)}-"
+            (CreditNotesTable innerJoin InvoicesTable)
+                .selectAll()
+                .where {
+                    (InvoicesTable.userId eq userId.value) and
+                        (CreditNotesTable.creditNoteNumber like "$prefix%")
+                }
+                .orderBy(CreditNotesTable.creditNoteNumber, SortOrder.DESC)
+                .firstOrNull()
+                ?.let { CreditNoteNumber(it[CreditNotesTable.creditNoteNumber]) }
+        }
+
     override suspend fun findByUser(userId: UserId): List<Invoice> =
         newSuspendedTransaction {
             InvoicesTable.selectAll()

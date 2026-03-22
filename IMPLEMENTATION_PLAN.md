@@ -49,16 +49,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 8.4** (Mark Invoice Paid Use Case) — Done. `MarkInvoicePaid` use case in `application/invoicing/`. Command holds `userId`, `invoiceId`, `paymentDate`, `paymentMethod`. Loads invoice (InvoiceNotFound if missing), calls `invoice.markPaid()`, persists, dispatches `InvoicePaid` event. Works for DRAFT|SENT|OVERDUE → PAID transitions. 7 unit tests: draft→paid, sent→paid, overdue→paid, persists updated invoice, dispatches InvoicePaid event, InvoiceNotFound, InvalidTransition (Cancelled).
 
-### 8.5 Cancel Invoice and Credit Note Use Cases
-- **Layer:** application
-- **Spec:** mvp-spec S2.4, S2.9
-- **What:** Implement `DeleteDraft` (deletes draft, frees number), `CancelInvoice` (cancels sent/paid with credit note), `CorrectInvoice` (cancel old + create new replacement). Credit note PDF generation included.
-- **Acceptance criteria:**
-  - [ ] `DeleteDraft`: deletes draft invoice from database (number freed), dispatches `DraftDeleted`
-  - [ ] `CancelInvoice`: generates credit note number, creates `CreditNote`, calls `invoice.cancel(creditNote)`, generates credit note PDF, persists, dispatches events
-  - [ ] `CorrectInvoice`: cancels original (with credit note), creates new corrected invoice, links replacement. Returns both credit note and new invoice
-  - [ ] Unit tests for all three use cases
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.5** (Cancel Invoice and Credit Note Use Cases) — Done. `DeleteDraft`, `CancelInvoice`, `CorrectInvoice` use cases in `application/invoicing/`. `findLastCreditNoteNumberInMonth` added to `InvoiceRepository` port and `ExposedInvoiceRepository`. `DeleteDraft`: calls `invoice.cancel(null)`, deletes from DB (number freed), dispatches `DraftDeleted`. `CancelInvoice`: gets next credit note number, creates `CreditNote`, calls `invoice.cancel(creditNote)`, generates credit note PDF via `PdfPort`, persists, dispatches `InvoiceCancelled`. `CorrectInvoice`: reserves new invoice ID, creates credit note linking to new invoice, cancels original, creates corrected invoice with next number, generates both PDFs, persists both, dispatches `InvoiceCancelled`. Unit tests: 5 for DeleteDraft, 8 for CancelInvoice, 8 for CorrectInvoice.
 
 ### 8.6 Update Draft Use Case
 - **Layer:** application
