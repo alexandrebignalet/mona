@@ -2,7 +2,9 @@ package mona.infrastructure.pdf
 
 import mona.domain.model.Cents
 import mona.domain.model.Client
+import mona.domain.model.CreditNote
 import mona.domain.model.Invoice
+import mona.domain.model.InvoiceNumber
 import mona.domain.model.InvoiceStatus
 import mona.domain.model.PaymentMethod
 import mona.domain.model.User
@@ -25,6 +27,28 @@ object PdfGenerator {
     private val PAGE_HEIGHT = PDRectangle.A4.height
     private val RIGHT_EDGE = PAGE_WIDTH - RIGHT_MARGIN
     private val COL_MID = PAGE_WIDTH / 2f
+
+    fun generateCreditNote(
+        creditNote: CreditNote,
+        originalInvoiceNumber: InvoiceNumber,
+        user: User,
+        client: Client,
+        plainIban: String?,
+    ): ByteArray {
+        val document = PDDocument()
+        try {
+            val page = PDPage(PDRectangle.A4)
+            document.addPage(page)
+            val regular = PDType1Font(Standard14Fonts.FontName.HELVETICA)
+            val bold = PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD)
+            PDPageContentStream(document, page).use { cs ->
+                renderCreditNote(cs, creditNote, originalInvoiceNumber, user, client, plainIban, regular, bold)
+            }
+            return ByteArrayOutputStream().also { document.save(it) }.toByteArray()
+        } finally {
+            document.close()
+        }
+    }
 
     fun generateInvoice(
         invoice: Invoice,
@@ -173,6 +197,123 @@ object PdfGenerator {
             text(cs, regular, 10f, LEFT_MARGIN, y, "Mode de reglement : ${paidStatus.method.toFrench()}")
             y -= 18f
         }
+
+        // IBAN section
+        if (plainIban != null) {
+            line(cs, LEFT_MARGIN, y, RIGHT_EDGE, y)
+            y -= 14f
+            text(cs, bold, 10f, LEFT_MARGIN, y, "Coordonnees bancaires")
+            y -= 14f
+            text(cs, regular, 10f, LEFT_MARGIN, y, "IBAN : $plainIban")
+        }
+    }
+
+    @Suppress("LongMethod")
+    private fun renderCreditNote(
+        cs: PDPageContentStream,
+        creditNote: CreditNote,
+        originalInvoiceNumber: InvoiceNumber,
+        user: User,
+        client: Client,
+        plainIban: String?,
+        regular: PDType1Font,
+        bold: PDType1Font,
+    ) {
+        var y = PAGE_HEIGHT - LEFT_MARGIN - 20f
+
+        // Header: title + credit note number
+        text(cs, bold, 22f, LEFT_MARGIN, y, "AVOIR")
+        textRight(cs, regular, 11f, RIGHT_EDGE, y, creditNote.number.value)
+        y -= 18f
+        val dateLabel = "Date d'emission : ${creditNote.issueDate.format(DATE_FMT)}"
+        textRight(cs, regular, 10f, RIGHT_EDGE, y, dateLabel)
+        y -= 14f
+        val refLabel = "Avoir sur la facture : ${originalInvoiceNumber.value}"
+        textRight(cs, regular, 10f, RIGHT_EDGE, y, refLabel)
+        y -= 26f
+
+        // Seller (left) and buyer (right) columns
+        val blockTopY = y
+        var sellerY = blockTopY
+        var buyerY = blockTopY
+
+        // Seller block
+        text(cs, bold, 10f, LEFT_MARGIN, sellerY, "De :")
+        sellerY -= 14f
+        text(cs, bold, 11f, LEFT_MARGIN, sellerY, user.name ?: "-")
+        sellerY -= 13f
+        text(cs, regular, 9f, LEFT_MARGIN, sellerY, "Entreprise Individuelle")
+        if (user.siren != null) {
+            sellerY -= 12f
+            text(cs, regular, 9f, LEFT_MARGIN, sellerY, "SIREN : ${user.siren.value}")
+        }
+        if (user.address != null) {
+            for (line in user.address.formatted().lines()) {
+                sellerY -= 12f
+                text(cs, regular, 9f, LEFT_MARGIN, sellerY, line)
+            }
+        }
+
+        // Buyer block
+        text(cs, bold, 10f, COL_MID, buyerY, "A :")
+        buyerY -= 14f
+        text(cs, bold, 11f, COL_MID, buyerY, client.name)
+        if (client.companyName != null) {
+            buyerY -= 13f
+            text(cs, regular, 9f, COL_MID, buyerY, client.companyName)
+        }
+        if (client.siret != null) {
+            buyerY -= 12f
+            text(cs, regular, 9f, COL_MID, buyerY, "SIRET : ${client.siret.value}")
+        }
+        if (client.address != null) {
+            for (line in client.address.formatted().lines()) {
+                buyerY -= 12f
+                text(cs, regular, 9f, COL_MID, buyerY, line)
+            }
+        }
+
+        y = minOf(sellerY, buyerY) - 24f
+
+        // Separator
+        line(cs, LEFT_MARGIN, y, RIGHT_EDGE, y)
+        y -= 16f
+
+        // Amount section
+        val colUnit = LEFT_MARGIN + 380f
+        text(cs, bold, 10f, LEFT_MARGIN, y, "Description")
+        textRight(cs, bold, 10f, RIGHT_EDGE, y, "Montant HT")
+        y -= 5f
+        line(cs, LEFT_MARGIN, y, RIGHT_EDGE, y)
+        y -= 13f
+
+        val description = creditNote.reason.ifBlank { "Annulation facture ${originalInvoiceNumber.value}" }
+        text(cs, regular, 10f, LEFT_MARGIN, y, description)
+        textRight(cs, regular, 10f, RIGHT_EDGE, y, formatCents(creditNote.amountHt))
+        y -= 14f
+
+        y -= 4f
+        line(cs, LEFT_MARGIN, y, RIGHT_EDGE, y)
+        y -= 16f
+
+        // Totals
+        textRight(cs, bold, 10f, colUnit, y, "Total HT :")
+        textRight(cs, bold, 10f, RIGHT_EDGE, y, formatCents(creditNote.amountHt))
+        y -= 14f
+        textRight(cs, regular, 10f, colUnit, y, "Total TTC :")
+        textRight(cs, regular, 10f, RIGHT_EDGE, y, formatCents(creditNote.amountHt))
+        y -= 20f
+
+        // TVA mention
+        text(cs, regular, 9f, LEFT_MARGIN, y, "TVA non applicable, article 293 B du CGI")
+        y -= 22f
+
+        // Late payment penalty mention (mandatory French legal mention)
+        text(cs, regular, 9f, LEFT_MARGIN, y, "Penalites de retard : 3 fois le taux d'interet legal en vigueur")
+        y -= 12f
+        val recoveryLine = "Indemnite forfaitaire pour frais de recouvrement en cas de retard : 40 EUR"
+        text(cs, regular, 9f, LEFT_MARGIN, y, recoveryLine)
+        y -= 18f
 
         // IBAN section
         if (plainIban != null) {

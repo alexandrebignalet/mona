@@ -4,6 +4,8 @@ import mona.domain.model.ActivityType
 import mona.domain.model.Cents
 import mona.domain.model.Client
 import mona.domain.model.ClientId
+import mona.domain.model.CreditNote
+import mona.domain.model.CreditNoteNumber
 import mona.domain.model.DeclarationPeriodicity
 import mona.domain.model.DomainResult
 import mona.domain.model.Email
@@ -203,6 +205,85 @@ class PdfGeneratorTest {
             }
 
         val pdfBytes = PdfGenerator.generateInvoice(invoice, testUser(), testClient(), null)
+
+        assertTrue(pdfBytes.isNotEmpty())
+        Loader.loadPDF(pdfBytes).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+        }
+    }
+
+    private fun testCreditNote(
+        amountHt: Cents = Cents(-120000),
+        reason: String = "Annulation",
+    ): CreditNote =
+        CreditNote(
+            number = CreditNoteNumber("A-2026-03-001"),
+            amountHt = amountHt,
+            reason = reason,
+            issueDate = LocalDate.of(2026, 3, 22),
+            replacementInvoiceId = null,
+            pdfPath = null,
+        )
+
+    private val originalInvoiceNumber = InvoiceNumber("F-2026-03-001")
+
+    @Test
+    fun `generateCreditNote returns non-empty valid PDF`() {
+        val pdfBytes =
+            PdfGenerator.generateCreditNote(testCreditNote(), originalInvoiceNumber, testUser(), testClient(), null)
+
+        assertTrue(pdfBytes.isNotEmpty())
+        Loader.loadPDF(pdfBytes).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+        }
+    }
+
+    @Test
+    fun `generateCreditNote with reason produces valid PDF`() {
+        val creditNote = testCreditNote(reason = "Erreur de montant - correction a 900 EUR")
+        val pdfBytes =
+            PdfGenerator.generateCreditNote(creditNote, originalInvoiceNumber, testUser(), testClient(), null)
+
+        assertTrue(pdfBytes.isNotEmpty())
+        Loader.loadPDF(pdfBytes).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+        }
+    }
+
+    @Test
+    fun `generateCreditNote with IBAN produces valid PDF`() {
+        val pdfBytes =
+            PdfGenerator.generateCreditNote(
+                testCreditNote(),
+                originalInvoiceNumber,
+                testUser(),
+                testClient(),
+                "FR7630006000011234567890189",
+            )
+
+        assertTrue(pdfBytes.isNotEmpty())
+        Loader.loadPDF(pdfBytes).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+        }
+    }
+
+    @Test
+    fun `generateCreditNote without user SIREN produces valid PDF`() {
+        val userWithoutSiren = testUser().copy(siren = null, address = null)
+        val pdfBytes =
+            PdfGenerator.generateCreditNote(testCreditNote(), originalInvoiceNumber, userWithoutSiren, testClient(), null)
+
+        assertTrue(pdfBytes.isNotEmpty())
+        Loader.loadPDF(pdfBytes).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+        }
+    }
+
+    @Test
+    fun `generateCreditNote with blank reason uses default description`() {
+        val creditNote = testCreditNote(reason = "")
+        val pdfBytes =
+            PdfGenerator.generateCreditNote(creditNote, originalInvoiceNumber, testUser(), testClient(), null)
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->

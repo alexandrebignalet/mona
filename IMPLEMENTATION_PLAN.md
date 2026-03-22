@@ -28,18 +28,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Issue:** SQLite WAL PRAGMA must be set via raw JDBC before Exposed transaction (cannot run PRAGMA inside transaction). Fixed in DatabaseFactory.
 
 - **Phase 6.2** (PDF Invoice Generation) — Done. `PdfGenerator` object in `infrastructure/pdf/`. Generates A4 PDFs with all mandatory French legal mentions: issue date, invoice number, seller info (name, EI, SIREN, address), buyer info, line items table (description, qty, unit price HT, total HT), totals HT/TTC, TVA non-applicable mention, payment terms and due date, late payment penalties, payment method (if paid), IBAN section (if provided). Draft invoices get "BROUILLON" watermark (45°, light gray, drawn as background layer). Amounts formatted in French currency (e.g., "800,00 EUR") using integer arithmetic. Returns ByteArray. 7 integration tests (all status variants, with/without IBAN, with/without SIREN, multi-line items) using `Loader.loadPDF()`. Note: Payment method on invoice PDFs is only shown for `InvoiceStatus.Paid` since the current Invoice domain model only stores payment method in that status — this is consistent with the existing domain model.
-
-### 6.3 Credit Note PDF Generation
-- **Layer:** infrastructure
-- **Spec:** mvp-spec S2.9
-- **What:** Extend `PdfGenerator` to generate credit note PDFs. Reference to original invoice, negative amount, all mandatory mentions, optional reason.
-- **Acceptance criteria:**
-  - [ ] Credit note PDF references original invoice number
-  - [ ] Shows negative amount
-  - [ ] Contains all mandatory invoice mentions
-  - [ ] Shows reason if provided
-  - [ ] Integration test: generate credit note PDF, verify valid
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 6.3** (Credit Note PDF Generation) — Done. `generateCreditNote(creditNote, originalInvoiceNumber, user, client, plainIban)` added to `PdfGenerator`. Generates A4 PDFs with: "AVOIR" title, credit note number, issue date, reference to original invoice number, seller block, buyer block, amount line (description from reason or default, negative HT amount), totals HT/TTC, TVA non-applicable mention, mandatory late-payment penalty mentions, optional IBAN section. Blank reason falls back to "Annulation facture [originalInvoiceNumber]". 5 integration tests covering: basic PDF, with reason, with IBAN, without user SIREN, blank reason fallback.
 
 ### 6.4 Resend Email Adapter
 - **Layer:** infrastructure
