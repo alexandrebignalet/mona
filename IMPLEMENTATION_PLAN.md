@@ -32,23 +32,11 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 6.4** (Resend Email Adapter) — Done. `ResendEmailAdapter` in `infrastructure/email/` implementing `EmailPort`. Uses `java.net.http` + `kotlinx-serialization-json` (no new deps). Internal `HttpExecutor` fun interface enables test injection. PDF base64-encoded in Resend attachment payload. `fromEnv()` factory loads `RESEND_API_KEY`. `DomainError.EmailDeliveryFailed` added to domain. Primary constructor marked `internal` (module-visible) to keep `HttpExecutor` internal. 6 unit tests: Ok on 200, Err on 422 and 500, base64 encoding verified, recipient/sender verified, API key propagation verified.
 
+- **Phase 7.1** (SIRENE API Client) — Done. `SireneApiClient` in `infrastructure/sirene/` implementing `SirenePort`. Uses `java.net.http` + `kotlinx-serialization-json` (no new deps). Internal `SireneHttpExecutor` fun interface enables test injection. `lookupBySiren` calls `GET /siren/{siren}`, `searchByNameAndCity` calls `GET /siret?q=...&nombre=5` with Lucene query. NAF/APE code → ActivityType mapping covers BNC (legal, healthcare, education, engineering, R&D), BIC_VENTE (manufacturing, trade/retail), BIC_SERVICE (default). Legal name extraction handles both companies (denominationUniteLegale) and individual EIs (prenomUsuelUniteLegale + nomUniteLegale). `DomainError.SirenNotFound` and `DomainError.SireneLookupFailed` added. `fromEnv()` factory loads `SIRENE_API_KEY`. 13 unit tests: Ok on 200 for company and EI, Err on 404/401/500/503, API key propagation, URL correctness, NAF mappings (BIC_VENTE/BNC/null), search result parsing, empty list on 404.
+
 ---
 
 ## Phase 7: Infrastructure — External APIs
-
-### 7.1 SIRENE API Client
-- **Layer:** infrastructure
-- **Spec:** tech-spec S10 (SIRENE API), mvp-spec S1 (SIREN verification)
-- **What:** Implement `SireneApiClient` in `infrastructure/sirene/` implementing `SirenePort`. Support lookup by SIREN and search by name+city. Map API response to domain types (Siren, Siret, PostalAddress, ActivityType via NAF/APE code mapping).
-- **Acceptance criteria:**
-  - [ ] Implements `SirenePort` interface
-  - [ ] `lookupBySiren` calls INSEE API, returns legal name, SIREN, SIRET, address, activity type
-  - [ ] `searchByNameAndCity` calls INSEE API full-text search, returns max 5 results
-  - [ ] NAF/APE code -> ActivityType mapping covers common auto-entrepreneur codes
-  - [ ] Returns `Err` on API failure (not exception)
-  - [ ] API key loaded from `SIRENE_API_KEY` environment variable
-  - [ ] Unit test with mocked HTTP responses
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
 ---
 

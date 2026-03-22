@@ -30,4 +30,10 @@ sealed class DomainError(val message: String) {
 
     class EmailDeliveryFailed(val statusCode: Int, val responseBody: String) :
         DomainError("Email delivery failed with HTTP $statusCode: $responseBody")
+
+    class SirenNotFound(val siren: Siren) :
+        DomainError("SIREN ${siren.value} not found in SIRENE database")
+
+    class SireneLookupFailed(val reason: String) :
+        DomainError(reason)
 }
