@@ -60,6 +60,9 @@ Delegate to an **Opus subagent with ultrathink** for:
 - Cross-cutting infrastructure decisions
 - Debugging after > 1 failed attempt
 - Spec inconsistency
+- Aggregate boundary questions (should X be inside aggregate Y or its own aggregate?)
+- New domain event design (what data should the event carry?)
+- DomainError hierarchy changes (adding new error types)
 
 ### Architecture layer enforcement (after writing any file)
 
@@ -69,6 +72,24 @@ Verify no architecture violations per CLAUDE.md rules:
 - Application layer is thin orchestration only — no business logic
 - Infrastructure adapters contain no invoice/payment/revenue logic
 
+### DDD tactical pattern compliance (BLOCKING — after writing any domain/ or application/ file)
+
+Run this checklist against every file you just wrote or modified:
+
+| # | Rule | Violation Example | Fix |
+|---|------|-------------------|-----|
+| 1 | Domain functions return `DomainResult<T>`, never throw | `fun send(): Invoice { throw ... }` | Return `DomainResult.Err(...)` |
+| 2 | No raw primitives for domain concepts | `fun find(id: String)` | Use `InvoiceId`, `UserId`, etc. |
+| 3 | State transitions via aggregate methods only | `invoice.copy(status = Sent)` in use case | Call `invoice.send()` |
+| 4 | New aggregates use factory method | `Invoice(... status = Draft ...)` in use case | Call `Invoice.create(...)` |
+| 5 | Events returned from transitions, not published inline | `messagingPort.send()` inside `Invoice.send()` | Return event in `TransitionResult` |
+| 6 | One repository per aggregate root | `CreditNoteRepository` interface | CreditNote is inside Invoice aggregate |
+| 7 | Application layer: persist → dispatch → return | Dispatch before persist | Reorder |
+| 8 | Read-model snapshots for revenue/URSSAF queries | Passing `List<Invoice>` to `RevenueCalculation` | Use `PaidInvoiceSnapshot` |
+| 9 | `Cents` arithmetic uses operator overloads | `Cents(a.value + b.value)` | Use `a + b` (overflow-safe) |
+
+If any violation is found, fix it before proceeding. Do not defer fixes to a later task.
+
 ### Prevention rules check (before writing code)
 
 Scan the **Prevention Rules** table in IMPLEMENTATION_PLAN.md (already loaded from Phase 0). Apply any relevant rules to the code you are about to write.
@@ -77,9 +98,15 @@ Scan the **Prevention Rules** table in IMPLEMENTATION_PLAN.md (already loaded fr
 
 - Implement completely. No placeholders, stubs, or TODOs.
 - No `Any` types, no unchecked casts unless justified.
-- Use value classes (`Cents`, `Siren`, `InvoiceNumber`) — never raw primitives for domain concepts.
+- Use value classes (`Cents`, `Siren`, `InvoiceNumber`, `Email`, `InvoiceId`, `ClientId`, `UserId`, etc.) — never raw primitives for domain concepts.
 - Use sealed classes for state machines — enforce exhaustive `when` matching.
-- All money arithmetic in `Long` (cents). Never `Double` or `Float` for money.
+- All money arithmetic via `Cents` operator overloads (`+`, `-`, `*`). Never `Cents(a.value + b.value)` — use `a + b` for overflow safety.
+- Domain functions return `DomainResult<T>`. Never throw from domain layer (except `Cents` arithmetic overflow).
+- State transitions only via aggregate methods: `invoice.send()`, `.markPaid()`, `.markOverdue()`, `.cancel()`. Never `invoice.copy(status = ...)` from outside the aggregate.
+- New Invoice creation via `Invoice.create()` factory. Data class constructor is for DB reconstitution only.
+- Application use cases follow: persist aggregate → dispatch events → return result. Max ~30 lines.
+- Events are returned from aggregate transitions in `TransitionResult`, dispatched by the application layer.
+- Revenue/URSSAF calculations use read-model snapshots (`PaidInvoiceSnapshot`), not full aggregates.
 - Use Read/Grep/Glob directly for all file reads and searches.
 - Use an Explore subagent only for open-ended multi-file exploration where target files are unknown.
 - Use 1 subagent for build/test (Phase 3).

@@ -70,30 +70,57 @@ src/
 
 ### Backpressure Checklist (answer before writing code)
 
-1. Right layer? 2. Approved tech only? 3. Domain stays pure? 4. Not duplicating? 5. Testable in isolation? 6. Matches spec?
+1. Right layer? 2. Approved tech only? 3. Domain stays pure? 4. Not duplicating? 5. Testable in isolation? 6. Matches spec? 7. DDD patterns respected? (see §DDD Tactical Patterns above)
 
-## Domain Types (Reference)
+## DDD Tactical Patterns (Enforcement Rules)
+
+The domain layer uses DDD tactical patterns. The full reference with code is in `specs/tech-spec.md` §2. These rules are **hard gates** for any code touching `domain/` or `application/`.
+
+### Pattern Inventory
+
+| Pattern | Location | Key Types |
+|---------|----------|-----------|
+| Domain Result | `domain/model/DomainResult.kt` | `DomainResult<T>`, `DomainError` |
+| Value Objects | `domain/model/values.kt` | `Cents`, `Siren`, `Siret`, `Email`, `PostalAddress`, `PaymentDelayDays`, `DeclarationPeriod`, `InvoiceId`, `ClientId`, `UserId` |
+| Aggregate Root | `domain/model/Invoice.kt` | `Invoice` with `.send()`, `.markPaid()`, `.markOverdue()`, `.cancel()` |
+| Factory | `Invoice.create()` companion | Validates invariants, returns `DomainResult<Invoice>` |
+| Domain Events | `domain/model/DomainEvent.kt` | `InvoiceSent`, `InvoicePaid`, `InvoiceOverdue`, `InvoiceCancelled`, `DraftDeleted` |
+| Transition Result | `domain/model/DomainEvent.kt` | `TransitionResult(invoice, events)` |
+| Numbering | `domain/model/InvoiceNumbering.kt` | `InvoiceNumbering.next()`, `CreditNoteNumbering.next()` |
+| Thresholds | `domain/service/UrssafThresholds.kt` | `UrssafThresholds.checkTvaThreshold()`, `.nextDeclarationDeadline()` |
+| Revenue | `domain/service/RevenueCalculation.kt` | `RevenueCalculation.compute()` with read-model snapshots |
+| Event Dispatcher | `application/EventDispatcher.kt` | Registered handlers, dispatched after persist |
+
+### Hard Rules
+
+1. **No exceptions in domain.** Domain functions return `DomainResult<T>`, never throw. The only exception is `ArithmeticException` from `Cents` overflow (intentional — silent wraparound is worse).
+2. **No raw primitives for domain concepts.** Use `InvoiceId` not `String`, `Cents` not `Long`, `Email` not `String`, etc.
+3. **State transitions via aggregate methods only.** Call `invoice.send()`, never construct `invoice.copy(status = Sent)` from outside the aggregate.
+4. **Factory for creation.** New invoices go through `Invoice.create()`. The data class constructor is for reconstitution from persistence only.
+5. **Events returned, not published.** Aggregate methods return `TransitionResult(invoice, events)`. Application layer persists, then dispatches events.
+6. **One repository per aggregate root.** `InvoiceRepository` handles Invoice + LineItems + CreditNote. No `LineItemRepository`, no `CreditNoteRepository`.
+7. **CreditNote lives inside Invoice aggregate.** Never create or query credit notes independently.
+8. **Read-model snapshots for queries.** Revenue/URSSAF calculations use `PaidInvoiceSnapshot`, not full `Invoice` objects.
+9. **Application layer pattern:** persist → dispatch events → return result. Max ~30 lines.
+
+### Domain Types (Quick Reference)
 
 ```kotlin
-@JvmInline value class Cents(val value: Long)
-@JvmInline value class Siren(val value: String)
-@JvmInline value class InvoiceNumber(val value: String)
-@JvmInline value class CreditNoteNumber(val value: String)
+// Value Objects (inline — zero runtime cost)
+Cents, Siren, Siret, Email, PostalAddress, PaymentDelayDays, DeclarationPeriod
+InvoiceId, ClientId, UserId, InvoiceNumber, CreditNoteNumber
 
-sealed class InvoiceStatus {
-    data object Draft : InvoiceStatus()
-    data object Sent : InvoiceStatus()
-    data class Paid(val date: LocalDate, val method: PaymentMethod) : InvoiceStatus()
-    data object Overdue : InvoiceStatus()
-    data object Cancelled : InvoiceStatus()
-}
+// Enums
+PaymentMethod { VIREMENT, CHEQUE, ESPECES, CARTE, AUTRE }
+ActivityType { BIC_VENTE, BIC_SERVICE, BNC }
+DeclarationPeriodicity { MONTHLY, QUARTERLY }
 
-enum class PaymentMethod { VIREMENT, CHEQUE, ESPECES, CARTE, AUTRE }
-enum class ActivityType { BIC_VENTE, BIC_SERVICE, BNC }
-enum class DeclarationPeriodicity { MONTHLY, QUARTERLY }
+// Status FSM (sealed class — exhaustive matching)
+InvoiceStatus { Draft, Sent, Paid(date, method), Overdue, Cancelled }
+
+// Result type
+DomainResult<T> { Ok(value), Err(error: DomainError) }
 ```
-
-Status transitions are enforced in a `transition()` function — invalid transitions fail explicitly.
 
 ## Specs
 
