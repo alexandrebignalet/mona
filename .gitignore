@@ -1,1 +1,7 @@
 .idea
+.gradle/
+build/
+*.class
+*.jar
+*.log
+local.properties
