@@ -57,18 +57,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 8.8** (Client Management Use Cases) — Done. `UpdateClient`, `ListClients`, `GetClientHistory` use cases in `application/client/`. `UpdateClient`: resolves client by `clientId` or `clientName`, returns `Ambiguous(matches)` when multiple name matches, updates email/address/companyName/siret/name fields, persists. `ListClients`: loads all clients, groups invoices by clientId, returns `ClientSummary(client, invoiceCount, totalAmount)` per client. `GetClientHistory`: resolves client by `clientId` or `clientName` (disambiguation supported), filters invoices by client, sorted by issue date. Unit tests: 7 for UpdateClient, 5 for ListClients, 7 for GetClientHistory.
 
-### 8.9 Onboarding Use Cases
-- **Layer:** application
-- **Spec:** mvp-spec S1
-- **What:** Implement `SetupProfile` use case for progressive onboarding steps: SIREN verification (via SirenePort), profile confirmation, payment terms, IBAN collection, email collection, URSSAF periodicity. Implement `FinalizeInvoice` that re-generates PDF without watermark after SIREN is provided.
-- **Acceptance criteria:**
-  - [ ] SIREN lookup via SirenePort, auto-fills name/address/activity
-  - [ ] SIREN search by name+city when user doesn't know SIREN
-  - [ ] Profile update persisted after each step
-  - [ ] IBAN encrypted before storage via IbanCrypto
-  - [ ] `FinalizeInvoice` re-generates PDF without BROUILLON watermark, updates invoice
-  - [ ] Unit tests with mocked SirenePort
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.9** (Onboarding Use Cases) — Done. `SetupProfile` use case in `application/onboarding/` with sealed command: `LookupSiren` (SIRENE lookup, auto-fills name/siret/address/activityType, returns `SirenFound`), `SearchSiren` (search by name+city, returns `SirenMatches`), `ApplySireneResult` (apply chosen match from search), `UpdateFields` (name, activityType, address, paymentDelay, email, periodicity), `SetIban` (encrypts via `CryptoPort`, stores `ibanEncrypted`). `FinalizeInvoice` use case re-generates PDF without BROUILLON watermark once user has SIREN; requires user with SIREN, invoice, and client. `CryptoPort` interface added to `domain/port/`; `IbanCryptoAdapter` added to `infrastructure/crypto/` implementing it. 10 unit tests for `SetupProfile`, 6 for `FinalizeInvoice`.
 
 ---
 
