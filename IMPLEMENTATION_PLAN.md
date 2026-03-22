@@ -35,6 +35,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 7.1** (SIRENE API Client) — Done. `SireneApiClient` in `infrastructure/sirene/` implementing `SirenePort`. Uses `java.net.http` + `kotlinx-serialization-json` (no new deps). Internal `SireneHttpExecutor` fun interface enables test injection. `lookupBySiren` calls `GET /siren/{siren}`, `searchByNameAndCity` calls `GET /siret?q=...&nombre=5` with Lucene query. NAF/APE code → ActivityType mapping covers BNC (legal, healthcare, education, engineering, R&D), BIC_VENTE (manufacturing, trade/retail), BIC_SERVICE (default). Legal name extraction handles both companies (denominationUniteLegale) and individual EIs (prenomUsuelUniteLegale + nomUniteLegale). `DomainError.SirenNotFound` and `DomainError.SireneLookupFailed` added. `fromEnv()` factory loads `SIRENE_API_KEY`. 13 unit tests: Ok on 200 for company and EI, Err on 404/401/500/503, API key propagation, URL correctness, NAF mappings (BIC_VENTE/BNC/null), search result parsing, empty list on 404.
 
 - **Phase 8.1** (EventDispatcher) — Done. `EventDispatcher` class in `application/EventDispatcher.kt`. `register(suspend (DomainEvent) -> Unit)` adds handlers. `dispatch(List<DomainEvent>)` calls all handlers for each event sequentially in registration order. 4 unit tests: two handlers receive all events, registration order preserved, no-handler no-op, empty event list calls no handlers.
+- **Phase 8.2** (Create Invoice Use Case) — Done. `CreateInvoice` use case in `application/invoicing/`. `PdfPort` interface added to `domain/port/` (generateInvoice, generateCreditNote); `PdfGenerator` now implements `PdfPort`. Use case: resolves or creates client by name, gets next sequential invoice number via `InvoiceNumbering.next()` + repository, calls `Invoice.create()` factory, checks for duplicates (same client+amount within 48h via `findByClientAndAmountSince`), generates PDF via `PdfPort`, persists, dispatches empty event list. Returns `CreateInvoiceResult.Created` or `CreateInvoiceResult.DuplicateWarning`. 7 unit tests with in-memory stubs: happy path, new client creation, existing client reuse, sequential numbering, duplicate warning, user-not-found error, empty-line-items error, PDF included in result.
 
 ---
 
@@ -43,33 +44,6 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 ---
 
 ## Phase 8: Application Layer — Core Use Cases
-
-### 8.1 EventDispatcher
-- **Layer:** application
-- **Spec:** tech-spec S2.9
-- **What:** Implement `EventDispatcher` class with `register(handler)` and `dispatch(events)`. Handlers are `suspend (DomainEvent) -> Unit`. Dispatched sequentially after persist.
-- **Acceptance criteria:**
-  - [ ] `register` adds handlers
-  - [ ] `dispatch` calls all registered handlers for each event
-  - [ ] Handlers are called in registration order
-  - [ ] Unit test: register two handlers, dispatch events, verify both called
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 8.2 Create Invoice Use Case
-- **Layer:** application
-- **Spec:** mvp-spec S2.1-2.4, tech-spec S2.5
-- **What:** Implement `CreateInvoice` use case in `application/invoicing/`. Orchestrates: get next invoice number, create client if new, call `Invoice.create()` factory, generate draft PDF, persist invoice, dispatch events. Handle duplicate detection (same client + amount within 48h).
-- **Acceptance criteria:**
-  - [ ] Generates sequential invoice number via `InvoiceNumbering.next()` + repository
-  - [ ] Creates new client if name not found
-  - [ ] Calls `Invoice.create()` factory (never constructs directly)
-  - [ ] Generates PDF (draft watermark if user has no SIREN)
-  - [ ] Persists invoice
-  - [ ] Dispatches domain events
-  - [ ] Returns duplicate warning if same client+amount within 48h
-  - [ ] Max ~30 lines of orchestration
-  - [ ] Unit test with in-memory repository stubs
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
 ### 8.3 Send Invoice Use Case
 - **Layer:** application

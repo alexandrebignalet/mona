@@ -8,6 +8,7 @@ import mona.domain.model.InvoiceNumber
 import mona.domain.model.InvoiceStatus
 import mona.domain.model.PaymentMethod
 import mona.domain.model.User
+import mona.domain.port.PdfPort
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -19,7 +20,7 @@ import java.io.ByteArrayOutputStream
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
-object PdfGenerator {
+object PdfGenerator : PdfPort {
     private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     private const val LEFT_MARGIN = 50f
     private const val RIGHT_MARGIN = 50f
@@ -28,7 +29,7 @@ object PdfGenerator {
     private val RIGHT_EDGE = PAGE_WIDTH - RIGHT_MARGIN
     private val COL_MID = PAGE_WIDTH / 2f
 
-    fun generateCreditNote(
+    override fun generateCreditNote(
         creditNote: CreditNote,
         originalInvoiceNumber: InvoiceNumber,
         user: User,
@@ -50,7 +51,7 @@ object PdfGenerator {
         }
     }
 
-    fun generateInvoice(
+    override fun generateInvoice(
         invoice: Invoice,
         user: User,
         client: Client,
