@@ -8,9 +8,16 @@ Multi-user from day one. French-speaking UX. Spec written in English for develop
 
 ### Deployment Strategy
 
-**V1 — Validate the core loop.** The goal is to ship fast and test with one real lead (admin-phobic auto-entrepreneur who currently invoices manually or not at all). V1 validates that the NL→invoice experience works, that the user comes back, and that the core features (invoicing, payment tracking, URSSAF reminders) deliver real value. All features are unlocked — no premium/free distinction. Success is measured by whether the lead actively uses Mona for real invoicing over 4+ weeks.
+**V1 — Validate the core loop.** The goal is to ship fast and test with one real lead (admin-phobic auto-entrepreneur who currently invoices manually or not at all). V1 validates that the NL→invoice experience works, that the user comes back, and that the core features (invoicing, payment tracking, URSSAF reminders) deliver real value. All features are unlocked — no premium/free distinction.
 
-**V2 — Expand and grow.** Once the core loop is validated, V2 focuses on acquiring new users, introducing the freemium paywall based on observed usage patterns, and adding features that drive engagement and retention at scale (quotes, expense tracking, referral rewards, proactive financial insights, demo mode). The premium tier boundaries are informed by V1 data: which features the lead actually uses and values most.
+**V1 success criteria** (measured over 4+ weeks with the validation user):
+- Creates **≥5 real invoices** (not test invoices)
+- Returns **unprompted** (not just responding to reminders) at least once per week
+- **Sends ≥3 invoices** to real clients via email through Mona
+- **Marks ≥1 invoice as paid** — proves payment tracking adoption
+- **Does not revert** to their previous invoicing method
+
+**V2 — Expand and grow.** Once the core loop is validated, V2 focuses on acquiring new users, introducing the freemium paywall based on observed usage patterns, and adding features that drive engagement and retention at scale (quotes, EPC QR payment codes, expense tracking, referral rewards, proactive financial insights, demo mode). Monetization is introduced in V2, informed by V1 usage data: which features the lead actually uses and values most, and where the paywall creates the clearest value boundary.
 
 ### Channel Strategy
 
@@ -36,6 +43,7 @@ Onboarding is spread across the user's first interactions to minimize upfront fr
 | 3 | Mona asks for SIREN to **finalize** the invoice | `siren` → auto-fills `name`, `address`, `activity_type` via SIRENE API | Yes — required before invoice is finalized |
 | 4 | User confirms auto-filled profile | User corrects any wrong fields or confirms | Yes — one message |
 | 4b | Mona asks for default payment terms | `default_payment_delay_days` — default 30, user can choose a different value (e.g., 15, 45, immediate) | Yes — one message |
+| 4c | Mona asks for IBAN (for payment info on invoices) | `iban` — stored encrypted | No — invoice is valid without it, but Mona encourages it: *"Ton IBAN pour que tes clients sachent où payer ?"* |
 | 5 | Mona collects email for platform account | `email` — grabbed from Telegram profile if available, otherwise asked in chat | Yes — required for account creation |
 | 6 | Mona sets up URSSAF reminders (collected later, in context) | `declaration_periodicity` (only field not in SIRENE) | Yes — required before reminders activate |
 
@@ -63,11 +71,43 @@ SIREN is collected **after the aha moment** — the user first sees a draft PDF 
 
 The draft PDF is legally valid as a draft — SIREN is only required on the finalized, issued invoice. This ensures the user experiences the core value before any administrative friction. If the API is unavailable, Mona falls back to manual collection.
 
-**Hint for users who don't know their SIREN:** *"Tu le trouves sur autoentrepreneur.urssaf.fr ou ton certificat INSEE."*
+**Two paths for SIREN collection:**
+
+1. **Direct entry:** The user types their 9-digit SIREN number.
+2. **Search by name:** If the user doesn't know their SIREN (*"je sais pas"*), Mona asks for their registration name and city, searches the SIRENE API, and proposes matches. If multiple results match, Mona lists them for disambiguation (max 5 results shown).
+
+```
+🤖 "Pour la finaliser, j'ai besoin de ton numéro SIREN — c'est quoi ?
+    (Si tu l'as pas sous la main, dis-moi ton nom et ta ville, je cherche pour toi)"
+👤 "je sais pas"
+🤖 "Pas de souci — tu t'es inscrit sous quel nom ? Et dans quelle ville ?"
+👤 "Sophie Martin, Paris"
+🤖 "J'ai trouvé 2 résultats :
+    1. Sophie Martin — 12 rue de la Paix, 75002 Paris — Conseil en gestion
+    2. Sophie Martin — 8 avenue Montaigne, 75008 Paris — Formation
+    C'est laquelle ?"
+👤 "La première"
+```
+
+**Hint (shown alongside the SIREN request):** *"Tu le trouves aussi sur autoentrepreneur.urssaf.fr ou ton certificat INSEE."*
 
 **Deep links:** Partners or accountants can share `t.me/monabot?start=siren_123456789` links that pre-fill the SIREN, skipping the collection step entirely.
 
 **Referral links:** V2 feature — see section 17.
+
+### Onboarding Drop-Off Recovery
+
+If the user creates a draft invoice but abandons the onboarding at the SIREN step (or any subsequent step), Mona sends a **single reminder after 24 hours**:
+
+```
+🤖 "Salut ! Tu as un brouillon de facture en attente — tu veux le finaliser ?
+    Il me manque juste ton SIREN pour générer la facture définitive."
+```
+
+**Rules:**
+- One reminder per drop-off — no nagging
+- If the user doesn't respond, no further follow-up
+- The drop-off step is tracked as a **funnel metric** (% who provide SIREN within 24h of first draft) in the admin dashboard
 
 ### Example Onboarding
 
@@ -93,8 +133,11 @@ The draft PDF is legally valid as a draft — SIREN is only required on the fina
 🤖 "Top ✓ Par défaut je mets 30 jours pour le délai de paiement — ça te va
     ou tu préfères autre chose (15 jours, 45 jours, immédiat) ?"
 👤 "30 jours c'est bien"
+🤖 "Noté ✓ Encore un truc — ton IBAN, pour que tes clients sachent où payer ?
+    (Tu le trouves dans ton appli bancaire)"
+👤 "FR76 3000 1007 9412 3456 7890 185"
 🤖 "Noté ✓ Facture F-2026-03-001 finalisée !
-    📄 PDF définitif en pièce jointe.
+    📄 PDF définitif en pièce jointe (avec ton IBAN).
     Je l'envoie par mail à Martin ?
     Au fait, ton email c'est sophie.martin@gmail.com ? Je t'envoie un lien
     pour sécuriser ton compte Mona."
@@ -150,6 +193,8 @@ The bot accepts free-form French messages and extracts structured invoice data v
 All amounts are stored in **cents** internally. Currency is EUR only in V1.
 
 **Non-EUR currency handling:** If the user mentions a non-EUR currency (e.g., *"Facture 1000$ pour Smith"*), Mona refuses clearly: *"Pour l'instant je ne gère que l'euro — tu veux que je fasse la facture en euros ?"*. Multi-currency is a long-term feature (see section 17).
+
+**Currency display in chat vs. PDF:** In conversational messages, Mona uses simplified amounts — `"800€"` or `"1 500€"` — without the "HT" suffix. For franchise en base users (the entire V1 target), HT and TTC are identical, so the distinction is confusing in chat. The full formal format (`800,00€ HT`, `TVA non applicable`) appears only on the invoice PDF, where it's legally required.
 
 ### 2.2 Multi-Line Invoices
 
@@ -261,6 +306,7 @@ Text-based, professional, no logo in V1.
 - Payment terms and due date (based on user's `default_payment_delay_days` setting, default 30 days)
 - Late payment penalties mention
 - Payment method (if specified)
+- Seller's IBAN (if provided) — displayed in a "Coordonnées bancaires" section
 
 PDF is generated programmatically using **pdf-lib** (pure JavaScript, no native dependencies). The invoice layout includes a line items table, which pdf-lib handles well. This avoids the Chromium/Puppeteer dependency, resulting in smaller Docker images, faster cold starts, and reliable generation on constrained hosting (Fly.io). Puppeteer may be introduced in Phase 2 if logo/custom template support requires HTML→PDF rendering.
 
@@ -766,6 +812,8 @@ Mona accepts **voice messages** as input — a key differentiator enabling hands
 
 **Implementation:** Telegram provides voice messages as `.ogg` files. The bot downloads the file and sends it to the **OpenAI Whisper API** for transcription, then feeds the transcript into the standard NL parsing pipeline. The transcription step is transparent to the user — Mona responds as if the user had typed the message.
 
+**Latency feedback:** Voice messages go through a multi-step pipeline (Telegram download → Whisper transcription → Claude parsing → response), which can take 5-8 seconds. To avoid the user staring at a silent chat, Mona sends a **typing indicator** (via Telegram's `sendChatAction: "typing"`) immediately upon receiving a voice message, before any processing begins. This gives instant feedback that the message was received and is being handled.
+
 **Cost optimization:** Whisper API costs ~€0.006/minute, which is negligible at early volumes. If transcription costs become significant at scale, migrate to self-hosted `whisper.cpp` (runs the small/medium model on CPU with solid French quality for short audio).
 
 ---
@@ -842,6 +890,7 @@ When the Claude API returns an error or times out:
 | `siren` | string(9) | No | Collected just-in-time before first PDF generation |
 | `siret` | string(14) | No | Auto-filled from SIRENE if available |
 | `address` | text | No | Auto-filled from SIRENE, confirmed at onboarding |
+| `iban` | string | No | Encrypted at rest. Collected during onboarding (step 4c), printed on invoice PDFs |
 | `activity_type` | enum | No | `BIC_VENTE`, `BIC_SERVICE`, `BNC` — auto-filled from SIRENE (NAF/APE code) |
 | `declaration_periodicity` | enum | No | `MONTHLY`, `QUARTERLY` — collected at Step 5 |
 | `vat_status` | enum | Yes | Default `FRANCHISE` |
@@ -1210,6 +1259,9 @@ V1 validates the core loop with one user. Everything below is deferred until the
 - Rate limiting (informed by V1 usage monitoring)
 - Referral system (tracking + rewards)
 - Quotes (devis) and devis→invoice conversion
+- EPC QR code on invoice PDFs (European Payment Council standard — client scans with banking app, transfer pre-filled with amount + reference)
+- Self-adapting confirmation (Mona suggests turning off confirmation after ~10 invoices)
+- Batch invoicing (*"Facture 800€ pour Dupont, 500€ pour Martin, 300€ pour Bernard"* → 3 invoices in one interaction)
 - Expense tracking (margin visibility)
 - Proactive financial insights (*"Tu as facturé 20% de plus que le mois dernier"*)
 - Demo/sandbox mode for new users exploring the bot
@@ -1223,7 +1275,6 @@ V1 validates the core loop with one user. Everything below is deferred until the
 - CSV export filtering (by date, client, status)
 - URSSAF contribution estimates (ACRE, mixed activities)
 - Revenue goals and monthly targets
-- Accountant sharing (read-only dashboard link or periodic email to accountant)
 - Annual pricing option
 
 **Phase 3:**
@@ -1236,6 +1287,8 @@ V1 validates the core loop with one user. Everything below is deferred until the
 
 **Long-term:**
 - Multi-currency invoicing (non-EUR support)
+- Accountant sharing (read-only dashboard link, periodic email to accountant, distribution lever for user acquisition)
+- Photo/document input (business card → client info extraction via Claude Vision)
 
 **Not planned:**
 - General AE admin Q&A (conversational)
@@ -1257,11 +1310,11 @@ V1 validates the core loop with one user. Everything below is deferred until the
 
 ### Pricing Model
 
-**V1: All features unlocked, no paywall.** The goal is to validate the core loop — not to monetize. All features (invoicing, dunning, URSSAF reminders, digests, CSV export) are available to the validation user.
+**V1: All features unlocked, no paywall.** The goal is to validate the core loop — not to monetize. All features (invoicing, dunning, URSSAF reminders, digests, CSV export) are available to the validation user. V1 usage data (feature frequency, message volume, which features drive retention) directly informs V2 paywall boundaries.
 
-**V2: Freemium** (introduced after V1 validation). The paywall boundaries will be informed by V1 usage data — which features the user actually relies on daily vs. which are nice-to-haves. Planned positioning:
+**V2: Freemium** (introduced after V1 validation). The paywall boundaries will be informed by V1 usage data — which features the user actually relies on daily vs. which are nice-to-haves. V2 also introduces stronger premium anchors (EPC QR payment codes, quotes, batch invoicing) that provide clearer value justification. Planned positioning:
 
 - **Free tier:** Core invoicing, PDF generation, email sending, client directory, payment tracking, voice messages, CSV export
-- **Premium tier (~€7–9/month) — "Get paid faster":** The exact feature set will be decided based on V1 learnings. Candidates: automated dunning, URSSAF reminders, weekly digest
+- **Premium tier (~€7–9/month) — "Get paid faster":** The exact feature set will be decided based on V1 learnings. Candidates: automated dunning, URSSAF reminders, weekly digest, EPC QR codes on invoices, quotes (devis)
 
-Rationale: free invoicing + CSV export keep the acquisition funnel open and drive retention. Marginal cost per free user is ~€0.25/month — sustainable at scale. Premium is positioned around clear monetary value: users get paid faster.
+Rationale: free invoicing + CSV export keep the acquisition funnel open and drive retention. Marginal cost per free user is ~€0.25/month — sustainable at scale. Premium is positioned around clear monetary value: users get paid faster. The V2 premium features (QR payment, quotes) provide stronger ROI justification than notifications alone.
