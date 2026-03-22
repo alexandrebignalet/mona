@@ -6,6 +6,12 @@ Mona is a conversational assistant that lets French auto-entrepreneurs manage in
 
 Multi-user from day one. French-speaking UX. Spec written in English for development and LLM prompt engineering purposes.
 
+### Deployment Strategy
+
+**V1 — Validate the core loop.** The goal is to ship fast and test with one real lead (admin-phobic auto-entrepreneur who currently invoices manually or not at all). V1 validates that the NL→invoice experience works, that the user comes back, and that the core features (invoicing, payment tracking, URSSAF reminders) deliver real value. All features are unlocked — no premium/free distinction. Success is measured by whether the lead actively uses Mona for real invoicing over 4+ weeks.
+
+**V2 — Expand and grow.** Once the core loop is validated, V2 focuses on acquiring new users, introducing the freemium paywall based on observed usage patterns, and adding features that drive engagement and retention at scale (quotes, expense tracking, referral rewards, proactive financial insights, demo mode). The premium tier boundaries are informed by V1 data: which features the lead actually uses and values most.
+
 ### Channel Strategy
 
 **V1 launches on Telegram** — the Telegram Bot API is free, which minimizes financial risk during validation. Telegram is the **validation channel**, not the long-term target channel. The French market lives on WhatsApp; Telegram skews tech-savvy and is not representative of the target audience.
@@ -29,6 +35,7 @@ Onboarding is spread across the user's first interactions to minimize upfront fr
 | 2 | User creates first invoice → Mona generates a **draft PDF** immediately (with "BROUILLON" watermark, no SIREN required) | Invoice data only | No — draft PDF is sent instantly |
 | 3 | Mona asks for SIREN to **finalize** the invoice | `siren` → auto-fills `name`, `address`, `activity_type` via SIRENE API | Yes — required before invoice is finalized |
 | 4 | User confirms auto-filled profile | User corrects any wrong fields or confirms | Yes — one message |
+| 4b | Mona asks for default payment terms | `default_payment_delay_days` — default 30, user can choose a different value (e.g., 15, 45, immediate) | Yes — one message |
 | 5 | Mona collects email for platform account | `email` — grabbed from Telegram profile if available, otherwise asked in chat | Yes — required for account creation |
 | 6 | Mona sets up URSSAF reminders (collected later, in context) | `declaration_periodicity` (only field not in SIRENE) | Yes — required before reminders activate |
 
@@ -60,7 +67,7 @@ The draft PDF is legally valid as a draft — SIREN is only required on the fina
 
 **Deep links:** Partners or accountants can share `t.me/monabot?start=siren_123456789` links that pre-fill the SIREN, skipping the collection step entirely.
 
-**Referral links:** Each user gets a unique referral link: `t.me/monabot?start=ref_USERID`. Referrals are tracked for analytics (referrer, referee, timestamp, activation status). The referral link is accessible via chat: *"Mona, mon lien de parrainage"*. Referral rewards are Phase 2 — V1 tracks data only.
+**Referral links:** V2 feature — see section 17.
 
 ### Example Onboarding
 
@@ -83,7 +90,10 @@ The draft PDF is legally valid as a draft — SIREN is only required on the fina
 🤖 "J'ai trouvé ton entreprise — Sophie Martin, 12 rue de la Paix, 75002 Paris,
     activité libérale. On part là-dessus ?"
 👤 "Oui"
-🤖 "Facture F-2026-03-001 finalisée ✓
+🤖 "Top ✓ Par défaut je mets 30 jours pour le délai de paiement — ça te va
+    ou tu préfères autre chose (15 jours, 45 jours, immédiat) ?"
+👤 "30 jours c'est bien"
+🤖 "Noté ✓ Facture F-2026-03-001 finalisée !
     📄 PDF définitif en pièce jointe.
     Je l'envoie par mail à Martin ?
     Au fait, ton email c'est sophie.martin@gmail.com ? Je t'envoie un lien
@@ -137,7 +147,9 @@ The bot accepts free-form French messages and extracts structured invoice data v
 }
 ```
 
-All amounts are stored in **cents** internally. Currency is stored per invoice (default EUR, multi-currency feature in V2).
+All amounts are stored in **cents** internally. Currency is EUR only in V1.
+
+**Non-EUR currency handling:** If the user mentions a non-EUR currency (e.g., *"Facture 1000$ pour Smith"*), Mona refuses clearly: *"Pour l'instant je ne gère que l'euro — tu veux que je fasse la facture en euros ?"*. Multi-currency is a long-term feature (see section 17).
 
 ### 2.2 Multi-Line Invoices
 
@@ -175,7 +187,20 @@ Single-item invoices are a special case of multi-line (one line item). The data 
 
 The user can configure confirmation off in their settings (per-user preference). When confirmation is off, Mona creates immediately and the user can correct after the fact.
 
-### 2.4 Duplicate Detection
+### 2.4 Quick Undo
+
+If the user says **"Annule"** within **60 seconds** of confirming an invoice creation, Mona silently deletes the draft (the invoice number is freed — it was never issued). This avoids the heavier cancel + recreate flow for fat-finger confirmations.
+
+```
+👤 "OK"
+🤖 "Facture F-2026-03-012 créée ✓ 📄 PDF en pièce jointe."
+👤 "Annule"  (within 60s)
+🤖 "Annulé ✓ La facture n'a pas été créée."
+```
+
+Quick undo only works on `DRAFT` invoices that have not been sent. After 60 seconds or after the invoice is sent, the standard cancellation flow applies (invoice keeps its number, status changes to `CANCELLED`).
+
+### 2.5 Duplicate Detection
 
 When a user requests an invoice with the same client + same amount on the same day as an existing invoice, Mona warns before creating:
 
@@ -187,7 +212,7 @@ When a user requests an invoice with the same client + same amount on the same d
 🤖 "OK, je ne crée rien ✓"
 ```
 
-### 2.5 Missing Information Handling
+### 2.6 Missing Information Handling
 
 Core principle: **never block the flow**. Create with what you have, ask for the rest after.
 
@@ -208,7 +233,7 @@ The invoice is usable immediately; the PDF is regenerated when missing info come
 **Missing user address (first invoice ever):**
 Mona asks for the user's address before generating the PDF, since it's legally mandatory on the invoice. This is the only hard block.
 
-### 2.6 Invoice Numbering
+### 2.7 Invoice Numbering
 
 Format: **`F-YYYY-MM-NNN`**
 
@@ -221,7 +246,7 @@ Examples: `F-2026-03-001`, `F-2026-04-012`
 
 Numbering is **per-user** and **strictly sequential with no gaps** (French legal requirement). If an invoice is cancelled, it keeps its number and is marked as cancelled — the number is never reused or skipped.
 
-### 2.7 PDF Generation
+### 2.8 PDF Generation
 
 Text-based, professional, no logo in V1.
 
@@ -233,13 +258,13 @@ Text-based, professional, no logo in V1.
 - Line items table: description, quantity, unit price HT, line total HT
 - Total HT and TTC
 - `"TVA non applicable, article 293 B du CGI"` (for franchise en base de TVA)
-- Payment terms and due date (30 days from issue date — see section 14 for V2 customization)
+- Payment terms and due date (based on user's `default_payment_delay_days` setting, default 30 days)
 - Late payment penalties mention
 - Payment method (if specified)
 
 PDF is generated programmatically using **pdf-lib** (pure JavaScript, no native dependencies). The invoice layout includes a line items table, which pdf-lib handles well. This avoids the Chromium/Puppeteer dependency, resulting in smaller Docker images, faster cold starts, and reliable generation on constrained hosting (Fly.io). Puppeteer may be introduced in Phase 2 if logo/custom template support requires HTML→PDF rendering.
 
-### 2.8 Credit Notes (Avoirs)
+### 2.9 Credit Notes (Avoirs)
 
 When an invoice has already been sent or paid, it cannot be modified (French legal requirement). To correct an error, Mona issues a **credit note** (avoir) that cancels the original invoice, then creates a new corrected invoice.
 
@@ -268,7 +293,7 @@ When an invoice has already been sent or paid, it cannot be modified (French leg
 
 **The original invoice status changes to `CANCELLED`** when a credit note is issued against it.
 
-### 2.9 Recurring Invoice Suggestions
+### 2.10 Recurring Invoice Suggestions
 
 Mona detects monthly billing patterns and proactively suggests repeating invoices. This saves freelancers who bill the same clients monthly from manually dictating the same invoice every time.
 
@@ -380,6 +405,19 @@ If the client's email is already on file:
 - Sender: configurable "from" address (e.g., `factures@mona-app.fr`)
 - Invoice status changes to `SENT` after successful email delivery
 
+### Email Bounce Handling
+
+When an email delivery fails (bounce, invalid address), Mona notifies the user and suggests correcting the address:
+
+```
+🤖 "L'email à jean.dupont@gmail.com a échoué — l'adresse est peut-être incorrecte.
+    Tu veux me donner une autre adresse pour Jean ?"
+👤 "j.dupont@gmail.com"
+🤖 "Mis à jour ✓ Renvoyé à j.dupont@gmail.com ✓"
+```
+
+The invoice status remains `DRAFT` (not `SENT`) until email delivery is confirmed. Resend provides webhook notifications for delivery status — the bot listens for bounce events and acts on them.
+
 ---
 
 ## 5. Revenue Tracking
@@ -410,9 +448,9 @@ Users can ask about their revenue at any time:
 - Outstanding (unpaid) invoices
 - List of paid invoices for a period
 
-### Monthly Revenue Digest (Free)
+### Monthly Revenue Digest
 
-**Free feature. Opt-in.** Mona sends a monthly summary (1st of the month) with:
+**Opt-in.** Mona sends a monthly summary (1st of the month) with:
 - Revenue collected last month
 - Number of invoices sent / paid
 - Outstanding invoices and total pending amount
@@ -426,9 +464,9 @@ Users can ask about their revenue at any time:
 
 The monthly digest doubles as a **retention lever** — it brings inactive users back into the conversation. Activated via chat: `"Mona, envoie-moi un récap chaque mois"`.
 
-### Weekly Revenue Digest (Premium)
+### Weekly Revenue Digest
 
-**Premium feature. Opt-in.** Mona sends a weekly summary (Monday morning) with:
+**Opt-in.** Mona sends a weekly summary (Monday morning) with:
 - Revenue collected this week
 - Number of invoices sent / paid
 - Outstanding invoices and total pending amount
@@ -442,7 +480,7 @@ The monthly digest doubles as a **retention lever** — it brings inactive users
     Bonne semaine Sophie !"
 ```
 
-The user activates via chat: `"Mona, envoie-moi un récap chaque semaine"` and deactivates the same way. If the user is on the free tier, Mona explains this is a premium feature.
+The user activates via chat: `"Mona, envoie-moi un récap chaque semaine"` and deactivates the same way.
 
 ### Livre des Recettes (Revenue Ledger)
 
@@ -538,9 +576,9 @@ When an invoice transitions to `OVERDUE`, Mona notifies the user:
 
 The overdue check runs daily via cron. Mona notifies once per invoice when it first becomes overdue — no repeated notifications for the same invoice.
 
-### Payment Follow-Up / Dunning (Premium)
+### Payment Follow-Up / Dunning
 
-**Premium feature.** Automated payment reminders sent directly to clients. **Global opt-in setting** — disabled by default, the user must explicitly activate it.
+Automated payment reminders sent directly to clients. **Global opt-in setting** — disabled by default, the user must explicitly activate it.
 
 **Default schedule (3-step escalation):**
 
@@ -570,9 +608,7 @@ When an invoice is marked as paid, the dunning sequence stops automatically.
 
 ---
 
-## 7. URSSAF Reminders (Premium)
-
-**Premium feature.**
+## 7. URSSAF Reminders
 
 ### Setup
 
@@ -647,7 +683,7 @@ This allows references like `"envoie-la à Jean"` or `"en fait c'est 900€"` to
 
 If the reference is ambiguous (e.g., multiple invoices created since), Mona asks for clarification instead of guessing.
 
-**Best-effort conversational context:** The last 2-3 messages are kept in an in-memory map for richer conversational flow within a short window. If the server restarts, this context is lost — the last-action pointer in SQLite ensures core references still work.
+**Conversational context:** The last 2-3 messages are **persisted to SQLite** (in the `ConversationMessage` table) for richer conversational flow. This survives server restarts, ensuring references like *"en fait c'est 900€"* work reliably even after deploys or crashes.
 
 ### Token Optimization
 
@@ -658,7 +694,7 @@ To keep API costs low (~€0.15/user/month at 50 messages):
   - System prompt (static, ~300 tokens)
   - Compact user context: name, SIREN, recent invoice (structured JSON, ~100 tokens)
   - Last 2-3 messages only (~200 tokens)
-- Conversational context lives in the **application layer** (in-memory map), not in the LLM context
+- Conversational context lives in the **application layer** (persisted to SQLite), not in the LLM context
 - Target per-request: ~500-800 tokens in, ~200 tokens out
 
 ### Structured Actions
@@ -671,6 +707,7 @@ The LLM parses messages into one of these action types:
 | `send_invoice` | Email an invoice to a client |
 | `mark_paid` | Mark an invoice as paid |
 | `cancel_invoice` | Cancel an invoice |
+| `undo_invoice` | Quick undo — delete a draft invoice within 60s of creation |
 | `correct_invoice` | Issue credit note + new corrected invoice (for sent/paid invoices) |
 | `get_revenue` | Query revenue for a period |
 | `export_invoices` | Export all invoices as CSV |
@@ -716,7 +753,7 @@ No buttons, no menus — stays conversational.
 
 Mona accepts **voice messages** as input — a key differentiator enabling hands-free invoice creation for freelancers on the go. The audio is transcribed then parsed by Claude like any text message.
 
-**Voice is a free feature** — available to all users regardless of tier.
+**Voice is available to all users.**
 
 ```
 👤 🎤 "Facture cinq cents euros pour Martin, développement web"
@@ -735,7 +772,7 @@ Mona accepts **voice messages** as input — a key differentiator enabling hands
 
 ## 9. CSV Export
 
-**Free feature.** Users can export all their invoices as a CSV file sent directly in the Telegram chat.
+Users can export all their invoices as a CSV file sent directly in the Telegram chat.
 
 ```
 👤 "Exporte mes factures"
@@ -754,11 +791,20 @@ No filtering in V1 — full export only. Filename format: `mona-factures-YYYY-MM
 
 ---
 
-## 10. API Resilience
+## 10. Resilience & Error Handling
+
+### General Principle
+
+When any external dependency fails (Claude API, SIRENE API, Resend, Whisper), Mona:
+1. **Acknowledges the failure** in plain French — no cryptic error messages
+2. **Queues the task** for automatic retry with exponential backoff
+3. **Notifies the user** when the task completes successfully
+
+The user should always know: (a) something went wrong, (b) Mona is handling it, and (c) they'll be notified when it's resolved.
+
+### Claude API Outage
 
 The Claude Sonnet API is the sole NL parsing layer. If it's unavailable, Mona cannot process messages.
-
-**Strategy: queue + notify.**
 
 When the Claude API returns an error or times out:
 1. Mona queues the user's message in the application layer
@@ -766,9 +812,18 @@ When the Claude API returns an error or times out:
 3. Retries queued messages with exponential backoff (max 5 minutes between retries)
 4. Once the API is back, processes the queue in order and responds normally
 
-**No structured fallback in V1.** No regex parsing, no command syntax — consistency of the conversational UX is more important than degraded partial functionality. This is a deliberate tradeoff: at early volumes, an outage is unlikely to affect many users simultaneously. **Revisit when user base grows** — a structured command fallback (e.g., `/facture 800 Dupont coaching`) may be warranted at scale.
+**No structured fallback in V1.** No regex parsing, no command syntax — consistency of the conversational UX is more important than degraded partial functionality.
 
 **Queue limits:** max 10 messages per user, oldest dropped if exceeded. Queue TTL: 1 hour.
+
+### Other External Failures
+
+| Dependency | Failure behavior |
+|------------|-----------------|
+| **SIRENE API** | Mona falls back to manual collection: *"Je n'arrive pas à vérifier ton SIREN — tu peux me donner ton nom, adresse et type d'activité ?"* |
+| **Resend (email)** | Invoice stays `DRAFT`, Mona notifies: *"L'envoi a échoué, je réessaie automatiquement."* Retries up to 3 times. |
+| **Whisper API** | *"J'ai pas réussi à transcrire ton vocal — tu peux réessayer ou me l'écrire ?"* |
+| **PDF generation** | *"J'ai un souci pour générer le PDF — je réessaie."* Retries, notifies when ready. |
 
 ---
 
@@ -794,9 +849,7 @@ When the Claude API returns an error or times out:
 | `monthly_digest` | boolean | Yes | Default `false` |
 | `auto_dunning` | boolean | Yes | Default `false` |
 | `weekly_digest` | boolean | Yes | Default `false` |
-| `is_premium` | boolean | Yes | Default `false`, toggled via admin dashboard |
-| `premium_trial_used` | boolean | Yes | Default `false` — tracks whether the 7-day free trial has been consumed |
-| `premium_trial_end` | timestamp | No | End date of active trial, if any |
+| `default_payment_delay_days` | integer | Yes | Default `30` — configurable during onboarding (e.g., 0, 15, 30, 45, 60) |
 | `created_at` | timestamp | Yes | Auto |
 
 ### Client
@@ -821,10 +874,10 @@ When the Claude API returns an error or times out:
 | `client_id` | FK → Client | Yes | |
 | `invoice_number` | string | Yes | Format: `F-YYYY-MM-NNN`, per-user sequential |
 | `status` | enum | Yes | `DRAFT`, `SENT`, `PAID`, `OVERDUE`, `CANCELLED` |
-| `currency` | string(3) | Yes | Default `EUR`. Multi-currency feature in V2 |
+| `currency` | string(3) | Yes | `EUR` only in V1. Multi-currency is long-term |
 | `vat_rate` | decimal | Yes | `0` for franchise en base |
 | `issue_date` | date | Yes | |
-| `due_date` | date | Yes | Default: issue_date + 30 days |
+| `due_date` | date | Yes | Default: issue_date + user's `default_payment_delay_days` |
 | `paid_date` | date | No | Set when marked as paid |
 | `payment_method` | enum | No | `VIREMENT`, `CHEQUE`, `ESPECES`, `CARTE`, `AUTRE` |
 | `activity_type` | enum | Yes | `BIC_VENTE`, `BIC_SERVICE`, `BNC` — defaults to user's activity type, overridable per invoice. Required for mixed-activity URSSAF declarations |
@@ -885,6 +938,20 @@ When the Claude API returns an error or times out:
 | `last_action_type` | string | No | Action type enum value |
 | `updated_at` | timestamp | Yes | Auto |
 
+### ConversationMessage
+
+Persists the last 2-3 messages per user for conversational context that survives server restarts.
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `id` | uuid (PK) | Yes | Auto |
+| `user_id` | FK → User | Yes | |
+| `role` | enum | Yes | `USER`, `ASSISTANT` |
+| `content` | text | Yes | Message text |
+| `created_at` | timestamp | Yes | Auto |
+
+Only the last 3 messages per user are retained — older messages are pruned on each new message insert.
+
 ---
 
 ## 12. Technical Stack
@@ -917,16 +984,11 @@ Auto-entrepreneurs are legally required to keep invoices for **10 years**. Data 
 
 The SQLite database contains sensitive personal and financial data (SIREN, email, addresses, invoice amounts). **The database file must be encrypted at rest** using SQLite encryption (e.g., SQLCipher or similar) or filesystem-level encryption on the Fly.io volume. This is a GDPR requirement ("appropriate technical measures" — Art. 32).
 
-### Rate Limiting
+### Usage Monitoring (V1)
 
-Per-user message rate limits prevent abuse and cost overruns on the Claude API:
+No rate limiting in V1. Instead, per-user message counts are tracked and logged for observability (messages per day, API token consumption, voice message count). This data informs V2 rate limit thresholds and pricing tier boundaries.
 
-| Tier | Limit | Behavior when exceeded |
-|------|-------|----------------------|
-| Free | 100 messages/day | Mona responds: *"Tu as atteint la limite du jour — on se retrouve demain !"* |
-| Premium | 200 messages/day | Same behavior |
-
-Limits reset at midnight UTC. Rate limiting is enforced at the application layer before any API call.
+Rate limiting will be introduced in V2 when the product opens to multiple users.
 
 ### Availability & Recovery
 
@@ -946,6 +1008,13 @@ A **golden test suite** of French invoice requests ensures parsing quality does 
 - Run as part of CI — parsing accuracy must stay above **95%** on the test suite before any prompt change is deployed
 - Test suite grows over time as new failure modes are discovered in production
 
+**Context resolution test cases:** In addition to parsing tests, the suite includes multi-turn reference resolution scenarios:
+- Anaphora: *"envoie-la à Jean"* after invoice creation → resolves to last invoice
+- Corrections: *"en fait c'est 900€"* → modifies the last created invoice
+- Ambiguity: invoice created, then revenue query, then *"envoie-la"* → Mona asks for clarification
+- Multi-step: *"le client c'est Martin pas Dupont, et change le montant à 900€"* → two mutations on the same invoice
+- Minimum 15 context resolution test cases alongside the 50+ parsing test cases
+
 ### Messaging Abstraction (MessagingPort)
 
 To avoid Telegram lock-in and enable future channels (WhatsApp, etc.), all messaging goes through a **MessagingPort interface**. Telegram (via grammY) is the first adapter.
@@ -955,6 +1024,7 @@ interface MessagingPort {
   sendMessage(userId: string, text: string): Promise<void>;
   sendDocument(userId: string, file: Buffer, filename: string): Promise<void>;
   sendButtons(userId: string, text: string, buttons: Button[]): Promise<void>;
+  setPersistentMenu(userId: string, items: MenuItem[]): Promise<void>;
   onMessage(handler: (msg: IncomingMessage) => void): void;
   onVoice(handler: (voice: IncomingVoice) => void): void;
 }
@@ -976,9 +1046,24 @@ interface Button {
   label: string;
   callbackData: string;
 }
+
+interface MenuItem {
+  label: string;
+  text: string; // message sent when tapped
+}
 ```
 
 **Inline buttons** (e.g., Oui/Non for payment check-ins) are sent via `sendButtons` when the channel supports them. The bot **always accepts text and voice replies** as equivalent — buttons are a UX enhancement, never a requirement. If a channel adapter doesn't support buttons, it falls back to a text prompt.
+
+### Persistent Menu
+
+A **persistent keyboard/menu** is displayed at the bottom of the chat with common actions:
+
+- **Nouvelle facture** — start invoice creation
+- **Mes impayés** — list outstanding invoices
+- **Mon CA** — revenue summary for the current month
+
+This is exposed via `setPersistentMenu` on the `MessagingPort` interface. Both Telegram (custom keyboard) and WhatsApp (persistent menu) support this natively, ensuring the feature transfers when migrating channels. The menu is a convenience shortcut — all actions remain accessible via natural language and voice.
 
 Conversation state is stored independent of any channel's chat IDs — the `userId` is mapped per-adapter.
 
@@ -1006,29 +1091,22 @@ A minimal web interface for data access and account management. **No invoice cre
 Internal dashboard for operations and support.
 
 **User Management:**
-- User list with status (free / premium / inactive)
+- User list with status (active / inactive)
 - View user details (profile, invoice count, last active)
-- Toggle premium features per user (for beta testing, partnerships, support)
 - Resend verification email
 - Manual password reset
 
-**Metrics Dashboard:**
+**Metrics Dashboard (V1):**
 
-| Metric | Definition | V1 Target |
-|--------|-----------|-----------|
-| Activation rate | % of signups who create first invoice in first session | > 60% |
-| Week-1 retention | % of activated users who return in week 2 | > 40% |
-| Month-1 retention | % of activated users active at day 30 | > 25% |
-| Free → premium conversion | % of free users who upgrade (once premium is live) | > 5% |
-| Core loop frequency | Invoices created per active user per month | > 3 |
+V1 focuses on validating the core loop with one user. Metrics are tracked for observability and to inform V2 decisions:
 
-Targets are initial benchmarks based on B2B SaaS and micro-entrepreneur tool norms. Adjust after first 3 months of real data.
-
-**Revenue & MRR Tracking:**
-- Total premium users
-- MRR (monthly recurring revenue)
-- MRR growth rate
-- Churn rate (premium users who cancel)
+| Metric | Definition | What it informs |
+|--------|-----------|-----------------|
+| Activation rate | % of signups who create first invoice in first session | Onboarding quality |
+| Core loop frequency | Invoices created per active user per month | Product-market fit |
+| Feature usage | Which features are used, how often | V2 paywall boundaries |
+| Messages per day | Daily message count per user | V2 rate limit thresholds |
+| API token consumption | Claude tokens per user per day | Cost model validation |
 
 **System Health:**
 - Claude API uptime and response times
@@ -1043,14 +1121,15 @@ Targets are initial benchmarks based on B2B SaaS and micro-entrepreneur tool nor
 
 Configurable per user via chat (e.g., `"Mona, désactive la confirmation"`):
 
-| Setting | Default | Tier | Description |
-|---------|---------|------|-------------|
-| `confirm_before_create` | `true` | Free | Ask for confirmation before creating invoices |
-| `monthly_digest` | `false` | Free | Receive a monthly revenue summary on the 1st of each month |
-| `auto_dunning` | `false` | Premium | Enable automated payment follow-up emails to clients |
-| `weekly_digest` | `false` | Premium | Receive a weekly revenue summary every Monday morning |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `confirm_before_create` | `true` | Ask for confirmation before creating invoices |
+| `monthly_digest` | `false` | Receive a monthly revenue summary on the 1st of each month |
+| `auto_dunning` | `false` | Enable automated payment follow-up emails to clients |
+| `weekly_digest` | `false` | Receive a weekly revenue summary every Monday morning |
+| `default_payment_delay_days` | `30` | Default payment terms on new invoices (set during onboarding, adjustable anytime) |
 
-When a free user tries to activate a premium setting, Mona explains: *"C'est une fonctionnalité premium — tu veux en savoir plus ?"*
+All features are unlocked in V1 (no premium/free distinction). Feature gating will be introduced in V2 based on observed usage patterns.
 
 ---
 
@@ -1123,10 +1202,19 @@ The web dashboard uses a minimal cookie consent banner (session cookies for auth
 
 ## 17. Out of Scope (V1)
 
-**Phase 2:**
-- Configurable payment terms (per-user default + per-client override)
-- Multi-currency invoicing (data model ready — `currency` field exists)
-- Quotes (devis)
+V1 validates the core loop with one user. Everything below is deferred until the core is proven.
+
+**Phase 2 — Expand & grow (after V1 validation):**
+- Freemium paywall introduction (boundaries informed by V1 usage data)
+- Premium trial logic + Stripe self-serve payment
+- Rate limiting (informed by V1 usage monitoring)
+- Referral system (tracking + rewards)
+- Quotes (devis) and devis→invoice conversion
+- Expense tracking (margin visibility)
+- Proactive financial insights (*"Tu as facturé 20% de plus que le mois dernier"*)
+- Demo/sandbox mode for new users exploring the bot
+- Per-client payment terms override
+- Partial payments (mark invoice as partially paid)
 - Livre des recettes PDF export
 - Invoice logo/customization
 - Client directory full management (merge duplicates, delete, bulk edit)
@@ -1135,9 +1223,7 @@ The web dashboard uses a minimal cookie consent banner (session cookies for auth
 - CSV export filtering (by date, client, status)
 - URSSAF contribution estimates (ACRE, mixed activities)
 - Revenue goals and monthly targets
-- Referral rewards (tracking is V1, rewards are V2)
 - Accountant sharing (read-only dashboard link or periodic email to accountant)
-- Premium upgrade prompt at trial end + Stripe self-serve payment
 - Annual pricing option
 
 **Phase 3:**
@@ -1147,6 +1233,9 @@ The web dashboard uses a minimal cookie consent banner (session cookies for auth
 - Full TVA management
 - Multi-user teams
 - Claude API structured fallback (command syntax for outages)
+
+**Long-term:**
+- Multi-currency invoicing (non-EUR support)
 
 **Not planned:**
 - General AE admin Q&A (conversational)
@@ -1168,25 +1257,11 @@ The web dashboard uses a minimal cookie consent banner (session cookies for auth
 
 ### Pricing Model
 
-**Freemium.**
+**V1: All features unlocked, no paywall.** The goal is to validate the core loop — not to monetize. All features (invoicing, dunning, URSSAF reminders, digests, CSV export) are available to the validation user.
 
-**Free tier (forever):**
-- Invoice creation (multi-line, voice, text)
-- PDF generation and email sending
-- Client directory
-- Payment tracking (manual mark-as-paid)
-- Proactive payment check-ins (D+1)
-- Voice messages
-- CSV export
-- Monthly revenue digest
+**V2: Freemium** (introduced after V1 validation). The paywall boundaries will be informed by V1 usage data — which features the user actually relies on daily vs. which are nice-to-haves. Planned positioning:
 
-**Premium tier — "Get paid faster" (€7–9/month):**
-- Automated dunning (3-step payment follow-up)
-- URSSAF reminders with pre-calculated amounts
-- Weekly revenue digest (with period-over-period comparison)
+- **Free tier:** Core invoicing, PDF generation, email sending, client directory, payment tracking, voice messages, CSV export
+- **Premium tier (~€7–9/month) — "Get paid faster":** The exact feature set will be decided based on V1 learnings. Candidates: automated dunning, URSSAF reminders, weekly digest
 
-Premium is positioned around a clear monetary value proposition: **users get paid faster**. Dunning automation is the hero feature — it directly impacts cash flow.
-
-**Free trial:** A 7-day premium trial is automatically triggered when a user's first invoice becomes overdue. This surfaces the premium value at the exact moment the user feels the pain. At the end of the trial, premium features deactivate silently — Mona mentions it once. In V1, premium is toggled manually via the admin dashboard (no self-serve payment flow). Stripe integration and upgrade prompts are Phase 2.
-
-Rationale: free invoicing + CSV export + monthly digest keep the acquisition funnel open, build word-of-mouth, and drive retention. Marginal cost per free user is ~€0.25/month — sustainable at scale. Gating data export (CSV) was considered but rejected — it feels punitive and doesn't drive conversion. Premium features target users who get enough value from Mona to justify the cost.
+Rationale: free invoicing + CSV export keep the acquisition funnel open and drive retention. Marginal cost per free user is ~€0.25/month — sustainable at scale. Premium is positioned around clear monetary value: users get paid faster.
