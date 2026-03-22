@@ -34,6 +34,8 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 7.1** (SIRENE API Client) — Done. `SireneApiClient` in `infrastructure/sirene/` implementing `SirenePort`. Uses `java.net.http` + `kotlinx-serialization-json` (no new deps). Internal `SireneHttpExecutor` fun interface enables test injection. `lookupBySiren` calls `GET /siren/{siren}`, `searchByNameAndCity` calls `GET /siret?q=...&nombre=5` with Lucene query. NAF/APE code → ActivityType mapping covers BNC (legal, healthcare, education, engineering, R&D), BIC_VENTE (manufacturing, trade/retail), BIC_SERVICE (default). Legal name extraction handles both companies (denominationUniteLegale) and individual EIs (prenomUsuelUniteLegale + nomUniteLegale). `DomainError.SirenNotFound` and `DomainError.SireneLookupFailed` added. `fromEnv()` factory loads `SIRENE_API_KEY`. 13 unit tests: Ok on 200 for company and EI, Err on 404/401/500/503, API key propagation, URL correctness, NAF mappings (BIC_VENTE/BNC/null), search result parsing, empty list on 404.
 
+- **Phase 8.1** (EventDispatcher) — Done. `EventDispatcher` class in `application/EventDispatcher.kt`. `register(suspend (DomainEvent) -> Unit)` adds handlers. `dispatch(List<DomainEvent>)` calls all handlers for each event sequentially in registration order. 4 unit tests: two handlers receive all events, registration order preserved, no-handler no-op, empty event list calls no handlers.
+
 ---
 
 ## Phase 7: Infrastructure — External APIs
