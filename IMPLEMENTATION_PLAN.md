@@ -47,18 +47,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 8: Application Layer — Core Use Cases
 
-### 8.4 Mark Invoice Paid Use Case
-- **Layer:** application
-- **Spec:** mvp-spec S5, tech-spec S2.9 (example)
-- **What:** Implement `MarkInvoicePaid` use case. Finds invoice, calls `invoice.markPaid()`, persists, dispatches events.
-- **Acceptance criteria:**
-  - [ ] Transitions invoice to Paid with date and method
-  - [ ] Returns error if invoice not found
-  - [ ] Returns error if transition is invalid
-  - [ ] Persists and dispatches events
-  - [ ] Max ~30 lines
-  - [ ] Unit test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.4** (Mark Invoice Paid Use Case) — Done. `MarkInvoicePaid` use case in `application/invoicing/`. Command holds `userId`, `invoiceId`, `paymentDate`, `paymentMethod`. Loads invoice (InvoiceNotFound if missing), calls `invoice.markPaid()`, persists, dispatches `InvoicePaid` event. Works for DRAFT|SENT|OVERDUE → PAID transitions. 7 unit tests: draft→paid, sent→paid, overdue→paid, persists updated invoice, dispatches InvoicePaid event, InvoiceNotFound, InvalidTransition (Cancelled).
 
 ### 8.5 Cancel Invoice and Credit Note Use Cases
 - **Layer:** application
