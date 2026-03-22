@@ -27,18 +27,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 6.1** (AES-256-GCM IBAN Encryption) — Done. `IbanCrypto` object with `encrypt`/`decrypt`/`loadKeyFromEnv`. Random IV prepended to ciphertext. Unit tests: round-trip, random IV, wrong-key failure, empty string, size check.
 - **Issue:** SQLite WAL PRAGMA must be set via raw JDBC before Exposed transaction (cannot run PRAGMA inside transaction). Fixed in DatabaseFactory.
 
-### 6.2 PDF Invoice Generation
-- **Layer:** infrastructure
-- **Spec:** tech-spec S6, mvp-spec S2.8
-- **What:** Implement `PdfGenerator` in `infrastructure/pdf/` using Apache PDFBox. Generate a text-based invoice PDF with all mandatory French legal mentions. Support draft watermark ("BROUILLON"). Accept domain types as input (Invoice, User, Client).
-- **Acceptance criteria:**
-  - [ ] Generated PDF contains: issue date, invoice number, seller info (name, EI, SIREN, address), buyer info (name, address if available), line items table (description, quantity, unit price HT, line total HT), total HT/TTC, "TVA non applicable, article 293 B du CGI", payment terms and due date, late payment penalties mention, payment method (if specified), IBAN section (if provided)
-  - [ ] Draft invoices get "BROUILLON" watermark
-  - [ ] Non-draft invoices have no watermark
-  - [ ] Amounts formatted as French currency (e.g., "800,00 EUR")
-  - [ ] PDF is returned as ByteArray
-  - [ ] Integration test: generate PDF, verify it is valid (non-zero size, parseable by PDFBox)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 6.2** (PDF Invoice Generation) — Done. `PdfGenerator` object in `infrastructure/pdf/`. Generates A4 PDFs with all mandatory French legal mentions: issue date, invoice number, seller info (name, EI, SIREN, address), buyer info, line items table (description, qty, unit price HT, total HT), totals HT/TTC, TVA non-applicable mention, payment terms and due date, late payment penalties, payment method (if paid), IBAN section (if provided). Draft invoices get "BROUILLON" watermark (45°, light gray, drawn as background layer). Amounts formatted in French currency (e.g., "800,00 EUR") using integer arithmetic. Returns ByteArray. 7 integration tests (all status variants, with/without IBAN, with/without SIREN, multi-line items) using `Loader.loadPDF()`. Note: Payment method on invoice PDFs is only shown for `InvoiceStatus.Paid` since the current Invoice domain model only stores payment method in that status — this is consistent with the existing domain model.
 
 ### 6.3 Credit Note PDF Generation
 - **Layer:** infrastructure
