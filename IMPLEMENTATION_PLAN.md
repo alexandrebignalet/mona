@@ -63,19 +63,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 9: Infrastructure — Telegram Adapter
 
-### 9.1 TelegramBotAdapter
-- **Layer:** infrastructure
-- **Spec:** tech-spec S5
-- **What:** Implement `TelegramBotAdapter` implementing `MessagingPort`. Uses TelegramBotAPI (InsanusMokrassar). Maps Telegram chat IDs to user IDs. Handles incoming text messages, sends text replies, sends PDF documents, sets up persistent menu (Nouvelle facture, Mes impayes, Mon CA).
-- **Acceptance criteria:**
-  - [ ] Implements all `MessagingPort` methods
-  - [ ] `onMessage` dispatches incoming Telegram messages as `IncomingMessage`
-  - [ ] `sendMessage` sends text to correct Telegram chat
-  - [ ] `sendDocument` sends file (PDF) to chat
-  - [ ] `setPersistentMenu` configures reply keyboard with 3 items
-  - [ ] Maps `telegram_id` to internal `UserId` via `UserRepository`
-  - [ ] Handles `/start` command (including deep links like `?start=siren_123456789`)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 9.1** (TelegramBotAdapter) — Done. `TelegramBotAdapter` in `infrastructure/telegram/` implementing `MessagingPort`. Uses `telegramBotWithBehaviourAndLongPolling` + `onText` trigger to receive all text messages (including commands and deep links). Caches `UserId → telegramId` on first contact and via `UserRepository.findById`. `sendMessage` includes stored `ReplyKeyboardMarkup` (set via `setPersistentMenu`) on every message. `sendButtons` uses `InlineKeyboardMarkup`. `sendDocument` uses `asMultipartFile(ByteArray, fileName)`. Note: `sendDocument` text parameter is named `text` (not `caption`) in TelegramBotAPI v18.
 
 ---
 
