@@ -19,70 +19,12 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 - **Phase 4.1** (Revenue Calculation and URSSAF Thresholds) — Done. PaidInvoiceSnapshot, CreditNoteSnapshot, RevenueCalculation, UrssafThresholds. Unit tested.
 - **Phase 4.2** (Repository Ports and MessagingPort) — Done. All ports: InvoiceRepository, ClientRepository, UserRepository, ConversationRepository, MessagingPort, EmailPort, SirenePort.
 
----
-
-## Phase 5: Infrastructure — Database
-
-### 5.1 Exposed Table Definitions and Database Setup
-- **Layer:** infrastructure
-- **Spec:** tech-spec S3
-- **What:** Define Exposed table objects for Users, Clients, Invoices, InvoiceLineItems, CreditNotes, ConversationMessages. Set up SQLite database connection factory with WAL mode. Include schema creation on startup.
-- **Acceptance criteria:**
-  - [ ] All tables match tech-spec S3 column definitions exactly
-  - [ ] Foreign key relationships defined (Client->User, Invoice->User, Invoice->Client, LineItem->Invoice, CreditNote->Invoice)
-  - [ ] SQLite connection with WAL mode enabled
-  - [ ] Schema auto-creation on startup
-  - [ ] Integration test: database initializes without errors
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 5.2 UserRepository Implementation
-- **Layer:** infrastructure
-- **Spec:** tech-spec S3 (User table), S2.10
-- **What:** Implement `ExposedUserRepository` backed by the Users table. Map between Exposed rows and domain `User` objects. Handle nullable fields (email, siren, address, etc.).
-- **Acceptance criteria:**
-  - [ ] `findById` returns domain `User` with correct value object mapping
-  - [ ] `findByTelegramId` queries by telegram_id
-  - [ ] `save` performs upsert (insert or update)
-  - [ ] Nullable domain fields map to nullable columns
-  - [ ] Integration test: save and retrieve a user round-trip
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 5.3 ClientRepository Implementation
-- **Layer:** infrastructure
-- **Spec:** tech-spec S3 (Client table), S2.10
-- **What:** Implement `ExposedClientRepository`. Map between Exposed rows and domain `Client` objects. Implement `findByUserAndName` with case-insensitive partial matching.
-- **Acceptance criteria:**
-  - [ ] `findById`, `save`, `findByUserAndName`, `findByUser` all work
-  - [ ] `findByUserAndName` does case-insensitive LIKE matching
-  - [ ] Integration test: save client, find by name fragment
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 5.4 InvoiceRepository Implementation
-- **Layer:** infrastructure
-- **Spec:** tech-spec S3 (Invoice, LineItem, CreditNote tables), S2.10
-- **What:** Implement `ExposedInvoiceRepository`. Handle the full aggregate: save/load Invoice with its LineItems and optional CreditNote. Implement all query methods including `findPaidInPeriod` (returning snapshots), `findCreditNotesInPeriod`, `findSentOverdue`, `findLastNumberInMonth`, `findByClientAndAmountSince`.
-- **Acceptance criteria:**
-  - [ ] `save` persists Invoice + LineItems + CreditNote in a transaction
-  - [ ] `findById` reconstitutes full aggregate (Invoice + LineItems + CreditNote)
-  - [ ] `delete` removes Invoice + associated LineItems and CreditNote
-  - [ ] `findPaidInPeriod` returns `PaidInvoiceSnapshot` list filtered by paid_date within period
-  - [ ] `findCreditNotesInPeriod` returns `CreditNoteSnapshot` list
-  - [ ] `findSentOverdue` returns invoices where status=Sent and dueDate < cutoff
-  - [ ] `findLastNumberInMonth` returns the highest invoice number for a user in a given month
-  - [ ] `findByClientAndAmountSince` supports duplicate detection (same client + amount within 48h)
-  - [ ] Integration tests for all query methods
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
-
-### 5.5 ConversationRepository Implementation
-- **Layer:** infrastructure
-- **Spec:** tech-spec S3 (ConversationMessage table)
-- **What:** Implement `ExposedConversationRepository`. On save, prune messages beyond the 3 most recent per user.
-- **Acceptance criteria:**
-  - [ ] `save` persists a conversation message
-  - [ ] After save, only the 3 most recent messages per user are retained (older messages deleted)
-  - [ ] `findRecent` returns last N messages ordered by timestamp
-  - [ ] Integration test: save 5 messages, verify only 3 remain
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 5.1** (Exposed Table Definitions and Database Setup) — Done. All tables, WAL mode, schema auto-creation.
+- **Phase 5.2** (UserRepository Implementation) — Done. Upsert, nullable mapping, integration tested.
+- **Phase 5.3** (ClientRepository Implementation) — Done. Case-insensitive name search, integration tested.
+- **Phase 5.4** (InvoiceRepository Implementation) — Done. Full aggregate save/load, snapshots, all query methods, integration tested.
+- **Phase 5.5** (ConversationRepository Implementation) — Done. Prune to 3 messages, integration tested.
+- **Issue:** SQLite WAL PRAGMA must be set via raw JDBC before Exposed transaction (cannot run PRAGMA inside transaction). Fixed in DatabaseFactory.
 
 ---
 
