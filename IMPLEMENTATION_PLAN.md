@@ -55,17 +55,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 8.7** (Revenue Query and CSV Export Use Cases) — Done. `GetRevenue`, `GetUnpaidInvoices`, `ExportInvoicesCsv` use cases in `application/revenue/`. `GetRevenue`: loads `PaidInvoiceSnapshot`s and `CreditNoteSnapshot`s via repository, computes `RevenueBreakdown` via `RevenueCalculation.compute()`, also returns pending count/amount from Sent+Overdue invoices. `GetUnpaidInvoices`: loads Sent+Overdue invoices, resolves client names, returns sorted by due date. `ExportInvoicesCsv`: loads all user invoices+clients, generates UTF-8 CSV with header row and one data row per invoice; line items serialized as `;`-separated sub-fields joined by ` | `; amounts formatted as euros (cents÷100, 2 decimal places); filename `mona-factures-YYYY-MM-DD.csv`. Unit tests: 5 for GetRevenue, 5 for GetUnpaidInvoices, 8 for ExportInvoicesCsv.
 
-### 8.8 Client Management Use Cases
-- **Layer:** application
-- **Spec:** mvp-spec S3
-- **What:** Implement `UpdateClient` (add/update client info), `ListClients` (list all clients with invoice summary), `GetClientHistory` (invoice history for a client). Client disambiguation logic (multiple matches by name).
-- **Acceptance criteria:**
-  - [ ] `UpdateClient` updates client fields (email, address, company name, SIRET)
-  - [ ] `ListClients` returns clients with invoice count and total amount
-  - [ ] `GetClientHistory` returns all invoices for a client
-  - [ ] Disambiguation: when multiple clients match a name, return the list for user selection
-  - [ ] Unit tests
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.8** (Client Management Use Cases) — Done. `UpdateClient`, `ListClients`, `GetClientHistory` use cases in `application/client/`. `UpdateClient`: resolves client by `clientId` or `clientName`, returns `Ambiguous(matches)` when multiple name matches, updates email/address/companyName/siret/name fields, persists. `ListClients`: loads all clients, groups invoices by clientId, returns `ClientSummary(client, invoiceCount, totalAmount)` per client. `GetClientHistory`: resolves client by `clientId` or `clientName` (disambiguation supported), filters invoices by client, sorted by issue date. Unit tests: 7 for UpdateClient, 5 for ListClients, 7 for GetClientHistory.
 
 ### 8.9 Onboarding Use Cases
 - **Layer:** application
