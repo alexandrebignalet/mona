@@ -53,17 +53,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 8.6** (Update Draft Use Case) — Done. `UpdateDraft` use case in `application/invoicing/`. `Invoice.updateDraft()` aggregate method added (validates Draft status, validates line items, preserves dueDate delta when only issueDate changes). Use case: loads user, loads invoice, resolves/creates client by name, calls `invoice.updateDraft()`, loads client for PDF, generates PDF, persists, dispatches empty events. Returns `UpdateDraftResult(invoice, pdf)`. `invalidTransition` made generic (`<T>`) to support both `DomainResult<TransitionResult>` and `DomainResult<Invoice>` returns. 10 unit tests: line items update, activity type update, issue date shift, payment delay recompute, existing client resolved, new client created, invoice persisted, InvoiceNotFound, ProfileIncomplete, InvalidTransition on Sent, EmptyLineItems.
 
-### 8.7 Revenue Query and CSV Export Use Cases
-- **Layer:** application
-- **Spec:** mvp-spec S6, S8
-- **What:** Implement `GetRevenue` use case (queries paid invoices in period, computes breakdown via `RevenueCalculation`). Implement `GetUnpaidInvoices` (lists outstanding). Implement `ExportInvoicesCsv` (generates CSV file content from all user invoices).
-- **Acceptance criteria:**
-  - [ ] `GetRevenue` returns `RevenueBreakdown` for requested period (month/quarter/year)
-  - [ ] `GetUnpaidInvoices` returns sent + overdue invoices sorted by due date
-  - [ ] `ExportInvoicesCsv` produces CSV with columns: invoice number, status, issue date, due date, paid date, client name, line items, total HT, total TTC, payment method
-  - [ ] CSV filename format: `mona-factures-YYYY-MM-DD.csv`
-  - [ ] Unit tests for all three
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 8.7** (Revenue Query and CSV Export Use Cases) — Done. `GetRevenue`, `GetUnpaidInvoices`, `ExportInvoicesCsv` use cases in `application/revenue/`. `GetRevenue`: loads `PaidInvoiceSnapshot`s and `CreditNoteSnapshot`s via repository, computes `RevenueBreakdown` via `RevenueCalculation.compute()`, also returns pending count/amount from Sent+Overdue invoices. `GetUnpaidInvoices`: loads Sent+Overdue invoices, resolves client names, returns sorted by due date. `ExportInvoicesCsv`: loads all user invoices+clients, generates UTF-8 CSV with header row and one data row per invoice; line items serialized as `;`-separated sub-fields joined by ` | `; amounts formatted as euros (cents÷100, 2 decimal places); filename `mona-factures-YYYY-MM-DD.csv`. Unit tests: 5 for GetRevenue, 5 for GetUnpaidInvoices, 8 for ExportInvoicesCsv.
 
 ### 8.8 Client Management Use Cases
 - **Layer:** application
