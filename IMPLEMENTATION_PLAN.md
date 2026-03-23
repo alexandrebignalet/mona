@@ -81,20 +81,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 11: Message Router and End-to-End Wiring
 
-### 11.1 Message Router
-- **Layer:** application
-- **Spec:** mvp-spec S9, S10
-- **What:** Implement `MessageRouter` that receives an `IncomingMessage`, looks up or creates the user, loads conversation context, calls Claude for parsing, routes the resulting action to the appropriate use case, formats the response, sends via `MessagingPort`, and persists conversation messages. Handle rate limiting (200 messages/day).
-- **Acceptance criteria:**
-  - [ ] Routes all 17 action types to their corresponding use cases
-  - [ ] Creates user on first message (from Telegram ID)
-  - [ ] Loads last 3 conversation messages for Claude context
-  - [ ] Persists both user message and bot response in conversation history
-  - [ ] Formats response in French with Mona's personality
-  - [ ] Sends PDF documents when invoices are created/updated
-  - [ ] Rate limiting: 200 messages/user/day, friendly French message when exceeded
-  - [ ] Error handling: catches infrastructure exceptions, returns user-friendly French error messages
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 11.1** (Message Router) — Done. `MessageRouter` in `application/` orchestrates all 17 action types. User resolved or created by telegramId on first contact. Loads last 3 conversation messages for Claude context via `PromptBuilder`. Calls `LlmPort` → parses `LlmResponse` via `ActionParser` → routes to appropriate use case. Formats French response strings inline. Sends text + PDF/CSV documents via `MessagingPort`. Persists USER + ASSISTANT messages to `ConversationRepository`. In-memory rate limiting: 200 messages/user/day (resets at midnight). Top-level `try-catch` in `handleAction` returns friendly French error. `formatDomainError` maps all 14 `DomainError` subtypes to French. 11 unit tests covering: user creation, rate limit, LLM error, text forwarding, conversational routing, unknown routing, create_invoice routing + PDF, get_unpaid empty, configure_setting persistence, conversation message persistence.
 
 ### 11.2 Onboarding Flow Integration
 - **Layer:** application
