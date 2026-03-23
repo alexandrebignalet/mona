@@ -39,4 +39,7 @@ sealed class DomainError(val message: String) {
 
     class SireneLookupFailed(val reason: String) :
         DomainError(reason)
+
+    class LlmUnavailable(val reason: String) :
+        DomainError("LLM unavailable: $reason")
 }

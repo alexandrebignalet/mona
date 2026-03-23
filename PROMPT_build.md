@@ -2,6 +2,8 @@
 
 This prompt governs implementation. Every "MUST" is a hard gate.
 
+**SESSION SCOPE: You MUST pick exactly ONE task from IMPLEMENTATION_PLAN.md, complete it fully, commit, and terminate. Do not start a second task. Do not ask the user what to work on. You decide, you execute, you finish, you stop.**
+
 ---
 
 ## Phase 0 — Context Loading
@@ -31,9 +33,15 @@ If layout contradicts CLAUDE.md, resolve before proceeding.
 
 ---
 
-## Phase 1 — Select and Plan Work
+## Phase 1 — Select Exactly One Task
 
-**Ultrathink** before selecting which IMPLEMENTATION_PLAN.md item to work on.
+**Ultrathink** to select the single highest-priority task from IMPLEMENTATION_PLAN.md.
+
+Selection criteria (in order):
+1. The first incomplete item whose dependencies are all satisfied (all prior items marked done).
+2. If multiple items at the same level have satisfied dependencies, pick the one listed first.
+
+**You MUST select exactly one task.** State which task you selected and why. Do not combine tasks. Do not "also do" adjacent items. One task, one commit.
 
 Verify current state using parallel Read tool calls (with offset/limit for large files).
 Use Grep for symbol/pattern searches across unknown files.
@@ -168,6 +176,10 @@ Increment the patch number from the output (e.g. `0.0.12` → `0.0.13`). If no t
 ```bash
 git tag <next-tag> && git push origin <next-tag>
 ```
+
+### 4d. Terminate
+
+**STOP. The session is complete.** Do not select another task. Do not ask the user if they want more work done. End your response after the commit and tag.
 
 ---
 

@@ -65,22 +65,11 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 9.1** (TelegramBotAdapter) — Done. `TelegramBotAdapter` in `infrastructure/telegram/` implementing `MessagingPort`. Uses `telegramBotWithBehaviourAndLongPolling` + `onText` trigger to receive all text messages (including commands and deep links). Caches `UserId → telegramId` on first contact and via `UserRepository.findById`. `sendMessage` includes stored `ReplyKeyboardMarkup` (set via `setPersistentMenu`) on every message. `sendButtons` uses `InlineKeyboardMarkup`. `sendDocument` uses `asMultipartFile(ByteArray, fileName)`. Note: `sendDocument` text parameter is named `text` (not `caption`) in TelegramBotAPI v18.
 
+- **Phase 10.1** (Claude API Client) — Done. `ClaudeApiClient` in `infrastructure/llm/` implementing `LlmPort`. Internal `ClaudeHttpExecutor` fun interface for test injection. `RealClaudeHttpExecutor` uses `java.net.http`. Builds request JSON with system prompt + optional user context JSON, conversation history (user/assistant roles), and tool definitions (with `input_schema`). Response parsing: prefers `tool_use` blocks over `text` blocks; returns `LlmResponse.ToolUse` or `LlmResponse.Text`. Non-200 responses and parse errors return `DomainError.LlmUnavailable`. `fromEnv()` loads `ANTHROPIC_API_KEY`. `DomainError.LlmUnavailable` added to domain. 11 unit tests.
+
 ---
 
 ## Phase 10: LLM Integration
-
-### 10.1 Claude API Client
-- **Layer:** infrastructure
-- **Spec:** tech-spec S4
-- **What:** Implement `ClaudeApiClient` in `infrastructure/llm/`. HTTP client for Claude Messages API with tool use. Handles request construction (system prompt, conversation history, tool definitions) and response parsing (tool calls, text responses). API key from environment variable.
-- **Acceptance criteria:**
-  - [ ] Sends requests to Claude Messages API with correct format
-  - [ ] Includes system prompt, user context, conversation history
-  - [ ] Parses tool_use responses into structured action types
-  - [ ] Parses text responses for conversational messages
-  - [ ] Handles API errors gracefully (returns error, does not throw)
-  - [ ] API key from `ANTHROPIC_API_KEY` environment variable
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
 ### 10.2 Tool Definitions and Action Types
 - **Layer:** infrastructure
