@@ -1,0 +1,194 @@
+[
+  {
+    "id": "ctx_pronoun_send_01",
+    "category": "context_resolution",
+    "description": "Résolution de pronom 'la' — envoie après création de brouillon Acme",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture Acme 1000 euros" },
+      { "role": "assistant", "content": "Brouillon créé pour Acme, 1 000 €. Je te l'envoie ?" }
+    ],
+    "userMessage": "Envoie-la",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_pronoun_send_02",
+    "category": "context_resolution",
+    "description": "Résolution de pronom 'l'' — envoyer après création TechCorp",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture pour TechCorp 1500€ de développement" },
+      { "role": "assistant", "content": "Brouillon créé pour TechCorp, 1 500 €." }
+    ],
+    "userMessage": "Tu peux l'envoyer ?",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_pronoun_paid_01",
+    "category": "context_resolution",
+    "description": "Marquage payée par virement après envoi à Design Studio",
+    "conversationHistory": [
+      { "role": "user", "content": "Envoie la facture à Design Studio" },
+      { "role": "assistant", "content": "Facture envoyée à Design Studio par email. ✓" }
+    ],
+    "userMessage": "J'ai reçu le paiement par virement",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "VIREMENT" }
+  },
+  {
+    "id": "ctx_pronoun_cancel_01",
+    "category": "context_resolution",
+    "description": "Annulation via pronom après envoi TechCorp",
+    "conversationHistory": [
+      { "role": "user", "content": "Envoie la facture F-2024-02-001 à TechCorp" },
+      { "role": "assistant", "content": "Facture F-2024-02-001 envoyée à TechCorp." }
+    ],
+    "userMessage": "Annule-la",
+    "expectedTool": "cancel_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_pronoun_delete_01",
+    "category": "context_resolution",
+    "description": "Suppression de brouillon via pronom après création Acme",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture Acme 500€" },
+      { "role": "assistant", "content": "Brouillon créé pour Acme, 500 €." }
+    ],
+    "userMessage": "Supprime-la",
+    "expectedTool": "delete_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_correction_amount_01",
+    "category": "context_resolution",
+    "description": "Correction de montant après création brouillon",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture StartupXYZ 1000€ pour mission web" },
+      { "role": "assistant", "content": "Brouillon créé pour StartupXYZ, 1 000 €." }
+    ],
+    "userMessage": "Non, c'est 1200€ pas 1000€",
+    "expectedTool": "update_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_correction_amount_02",
+    "category": "context_resolution",
+    "description": "Correction d'erreur sur montant de brouillon",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture MediLab 800€ pour analyse" },
+      { "role": "assistant", "content": "Brouillon de 800 € créé pour MediLab." }
+    ],
+    "userMessage": "J'ai fait une erreur, c'était 900 pas 800",
+    "expectedTool": "update_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_correction_client_01",
+    "category": "context_resolution",
+    "description": "Correction de client après question de Mona",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture 1500€ pour le développement web" },
+      { "role": "assistant", "content": "Pour quel client ?" }
+    ],
+    "userMessage": "C'est pour Dupont Consulting",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Dupont" }
+  },
+  {
+    "id": "ctx_same_client_01",
+    "category": "context_resolution",
+    "description": "Nouvelle facture identique mais pour un autre client",
+    "conversationHistory": [
+      { "role": "user", "content": "Facture Acme 1000€ de prestation" },
+      { "role": "assistant", "content": "Facture brouillon créée pour Acme, 1 000 €." }
+    ],
+    "userMessage": "La même chose pour Dupont",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Dupont" }
+  },
+  {
+    "id": "ctx_anaphora_client_01",
+    "category": "context_resolution",
+    "description": "Mise à jour email via anaphore 'son' après historique TechCorp",
+    "conversationHistory": [
+      { "role": "user", "content": "Montre l'historique de TechCorp" },
+      { "role": "assistant", "content": "TechCorp : 3 factures, 4 500 € au total." }
+    ],
+    "userMessage": "Mets à jour son email : contact@tech.fr",
+    "expectedTool": "update_client",
+    "expectedParams": { "client_name": "TechCorp" }
+  },
+  {
+    "id": "ctx_period_follow_01",
+    "category": "context_resolution",
+    "description": "Question de suivi sur une autre période (année après mois)",
+    "conversationHistory": [
+      { "role": "user", "content": "Quel est mon CA ce mois-ci ?" },
+      { "role": "assistant", "content": "CA du mois : 3 200 €." }
+    ],
+    "userMessage": "Et l'année entière ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "year" }
+  },
+  {
+    "id": "ctx_period_follow_02",
+    "category": "context_resolution",
+    "description": "Trimestre demandé après consultation CA annuel",
+    "conversationHistory": [
+      { "role": "user", "content": "Mon CA cette année" },
+      { "role": "assistant", "content": "CA annuel : 18 500 €." }
+    ],
+    "userMessage": "Et le dernier trimestre ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "quarter" }
+  },
+  {
+    "id": "ctx_reference_client_01",
+    "category": "context_resolution",
+    "description": "Historique client demandé après liste d'impayés mentionnant ce client",
+    "conversationHistory": [
+      { "role": "user", "content": "Mes factures impayées" },
+      { "role": "assistant", "content": "2 factures impayées : Design Studio 800 €, TechCorp 1 200 €." }
+    ],
+    "userMessage": "Donne-moi l'historique de Design Studio",
+    "expectedTool": "client_history",
+    "expectedParams": { "client_name": "Design Studio" }
+  },
+  {
+    "id": "ctx_mark_paid_ref_01",
+    "category": "context_resolution",
+    "description": "Paiement reçu référençant la facture précédemment envoyée",
+    "conversationHistory": [
+      { "role": "user", "content": "Envoie la facture F-2024-05-001 à MegaCorp" },
+      { "role": "assistant", "content": "Facture F-2024-05-001 envoyée à MegaCorp." }
+    ],
+    "userMessage": "Virement reçu de leur part ce matin",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "VIREMENT" }
+  },
+  {
+    "id": "ctx_correct_sent_01",
+    "category": "context_resolution",
+    "description": "Correction de montant sur facture déjà envoyée",
+    "conversationHistory": [
+      { "role": "user", "content": "Envoie la facture à TechCorp 2000€" },
+      { "role": "assistant", "content": "Facture envoyée à TechCorp, 2 000 €." }
+    ],
+    "userMessage": "Il y a une erreur, c'était 2500€ pas 2000€",
+    "expectedTool": "correct_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "ctx_ambiguous_client_01",
+    "category": "context_resolution",
+    "description": "Envoi précis après liste de brouillons avec plusieurs clients",
+    "conversationHistory": [
+      { "role": "user", "content": "J'ai plusieurs brouillons en cours" },
+      { "role": "assistant", "content": "Oui, tu as 3 brouillons : Acme (1 000 €), TechCorp (2 500 €), Design Studio (800 €)." }
+    ],
+    "userMessage": "Envoie celle de TechCorp",
+    "expectedTool": "send_invoice",
+    "expectedParams": { "client_name": "TechCorp" }
+  }
+]

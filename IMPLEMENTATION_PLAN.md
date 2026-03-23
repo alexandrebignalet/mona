@@ -75,18 +75,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 10.3** (System Prompt and Conversation Management) — Done. `PromptBuilder` object in `infrastructure/llm/`. `SYSTEM_PROMPT` constant (~300 tokens, French, tutoyante, brief, unknown-tool fallback, context-resolution from history). `buildUserContext(user)` produces `{"user_context": {"name"?, "has_siren", "onboarding_step"}}` JSON (new_user / awaiting_siren / complete). `buildContext(user, recentMessages)` assembles `ConversationContext(systemPrompt, userContextJson, messages.takeLast(3))`. 13 unit tests: system prompt content, all 3 onboarding steps, has_siren true/false, name present/absent, message trimming to 3, order preserved, token budget.
 
-### 10.4 Golden Test Suite — Parsing
-- **Layer:** test
-- **Spec:** tech-spec S11
-- **What:** Create initial golden test suite with 50+ French invoice parsing test cases. Each test case has an input message and expected structured action output. Categories: simple invoices, multi-line, slang/informal, ambiguous clients, corrections, revenue queries, payment marking, conversational, unparseable. Tests validate tool selection and parameter extraction.
-- **Acceptance criteria:**
-  - [ ] Minimum 50 parsing test cases covering all action types
-  - [ ] Minimum 15 context resolution test cases (anaphora, corrections, ambiguity)
-  - [ ] Test cases stored as data (not embedded in test code) for easy maintenance
-  - [ ] Test harness that runs each case against Claude API and validates output
-  - [ ] Tests are tagged/categorized for selective execution
-  - [ ] CI-compatible (can be run with `./gradlew test`)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 10.4** (Golden Test Suite — Parsing) — Done. 67 parsing test cases in `src/test/resources/golden/parsing_cases.json` covering all 17 tool types (create_invoice with simple/multi-line/slang/delay/activity variants, send_invoice, mark_paid, update_draft, delete_draft, cancel_invoice, correct_invoice, get_revenue, export_invoices, get_unpaid, update_client, update_profile, configure_setting, list_clients, client_history, conversational, unknown). 16 context resolution cases in `context_cases.json` covering: pronoun resolution (envoie-la, l'envoyer, annule-la, supprime-la), correction after creation, client clarification, same-for-other-client, anaphora (son email), follow-up period queries, cross-reference from prior turn, mark-paid referencing prior invoice. `GoldenTestLoader` (object) in `src/test/kotlin/mona/golden/`: loads JSON via kotlinx.serialization raw API, calls `ClaudeApiClient.fromEnv()`, validates tool name (exact) and top-level string params (case-insensitive contains). `GoldenParsingTest` (`@Tag("golden-parsing")`) and `GoldenContextTest` (`@Tag("golden-context")`) use JUnit 5 `@TestFactory` generating dynamic tests, each named `[category] id: description`. Both skip automatically via `Assumptions.assumeTrue` when `ANTHROPIC_API_KEY` is not set. Selective execution: `./gradlew test --tests "*.GoldenParsingTest"` or `-Dgolden.categories=create_invoice,mark_paid`.
 
 ---
 

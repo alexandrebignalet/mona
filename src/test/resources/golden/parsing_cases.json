@@ -1,0 +1,605 @@
+[
+  {
+    "id": "create_simple_01",
+    "category": "create_invoice",
+    "description": "Facture simple avec client et montant",
+    "conversationHistory": [],
+    "userMessage": "Facture Acme 1000 euros",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Acme" }
+  },
+  {
+    "id": "create_simple_02",
+    "category": "create_invoice",
+    "description": "Formulation avec 'fais une facture de'",
+    "conversationHistory": [],
+    "userMessage": "Fais une facture de 800€ pour TechCorp",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "TechCorp" }
+  },
+  {
+    "id": "create_simple_03",
+    "category": "create_invoice",
+    "description": "Nouvelle facture avec description de mission",
+    "conversationHistory": [],
+    "userMessage": "Nouvelle facture pour StartupXYZ : mission de conseil, 3000 euros",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "StartupXYZ" }
+  },
+  {
+    "id": "create_simple_04",
+    "category": "create_invoice",
+    "description": "Montant en premier, client après",
+    "conversationHistory": [],
+    "userMessage": "500€ à facturer à Design Studio",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Design Studio" }
+  },
+  {
+    "id": "create_simple_05",
+    "category": "create_invoice",
+    "description": "Je veux facturer formulation",
+    "conversationHistory": [],
+    "userMessage": "Je veux facturer Agence Web pour 2500€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Agence Web" }
+  },
+  {
+    "id": "create_simple_06",
+    "category": "create_invoice",
+    "description": "Frais de mission avec client",
+    "conversationHistory": [],
+    "userMessage": "Fais-moi une facture pour ImmoPro, mission de 4000€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "ImmoPro" }
+  },
+  {
+    "id": "create_simple_07",
+    "category": "create_invoice",
+    "description": "Facture mission de mars",
+    "conversationHistory": [],
+    "userMessage": "Facture Consulting Group 650€ pour la mission de mars",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Consulting Group" }
+  },
+  {
+    "id": "create_multi_01",
+    "category": "create_invoice",
+    "description": "Plusieurs lignes : dev + réunion",
+    "conversationHistory": [],
+    "userMessage": "Facture pour MegaCorp : développement 5 jours à 700€/jour et réunion 2h à 150€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "MegaCorp" }
+  },
+  {
+    "id": "create_multi_02",
+    "category": "create_invoice",
+    "description": "Formation + rapport multi-lignes",
+    "conversationHistory": [],
+    "userMessage": "2 jours de formation à 900€/jour et 1 rapport à 500€ pour HR Plus",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "HR Plus" }
+  },
+  {
+    "id": "create_multi_03",
+    "category": "create_invoice",
+    "description": "Conseil + rapport multi-lignes pour MediLab",
+    "conversationHistory": [],
+    "userMessage": "Pour MediLab : 3 heures de conseil à 200€/h et un rapport à 350€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "MediLab" }
+  },
+  {
+    "id": "create_multi_04",
+    "category": "create_invoice",
+    "description": "Analyse + présentation pour DataSoft",
+    "conversationHistory": [],
+    "userMessage": "Pour DataSoft : analyse de données 2 jours à 850€/j et présentation 400€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "DataSoft" }
+  },
+  {
+    "id": "create_slang_01",
+    "category": "create_invoice",
+    "description": "Argot : j'ai bossé pour",
+    "conversationHistory": [],
+    "userMessage": "J'ai bossé pour Dupont cette semaine, faut faire la fact 850€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Dupont" }
+  },
+  {
+    "id": "create_slang_02",
+    "category": "create_invoice",
+    "description": "Argot : il me doit",
+    "conversationHistory": [],
+    "userMessage": "Faut que je facture Martin, il me doit 1200€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Martin" }
+  },
+  {
+    "id": "create_slang_03",
+    "category": "create_invoice",
+    "description": "Argot : balles pour 'euros'",
+    "conversationHistory": [],
+    "userMessage": "Fais-moi une fact pour Startup ABC, 1500 balles",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Startup ABC" }
+  },
+  {
+    "id": "create_slang_04",
+    "category": "create_invoice",
+    "description": "Argot : mission du mois avec jours",
+    "conversationHistory": [],
+    "userMessage": "Je dois facturer DevCo pour la mission du mois, 4 jours à 600€",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "DevCo" }
+  },
+  {
+    "id": "create_delay_01",
+    "category": "create_invoice",
+    "description": "Facture avec délai de paiement explicite 30j",
+    "conversationHistory": [],
+    "userMessage": "Facture Acme Corp 2000€ avec 30 jours de délai de paiement",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Acme Corp", "payment_delay_days": "30" }
+  },
+  {
+    "id": "create_delay_02",
+    "category": "create_invoice",
+    "description": "Facture avec délai de paiement 60 jours",
+    "conversationHistory": [],
+    "userMessage": "Facture ImmoCo 3000€, paiement à 60 jours",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "ImmoCo", "payment_delay_days": "60" }
+  },
+  {
+    "id": "create_activity_01",
+    "category": "create_invoice",
+    "description": "Activité BNC : professions libérales",
+    "conversationHistory": [],
+    "userMessage": "Consultation juridique pour LexCorp 3500€, prestation libérale",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "LexCorp", "activity_type": "BNC" }
+  },
+  {
+    "id": "create_activity_02",
+    "category": "create_invoice",
+    "description": "Activité BIC_VENTE : vente de matériaux",
+    "conversationHistory": [],
+    "userMessage": "Facture Artisan SARL 4000€ pour vente de matériaux de construction",
+    "expectedTool": "create_invoice",
+    "expectedParams": { "client_name": "Artisan SARL", "activity_type": "BIC_VENTE" }
+  },
+  {
+    "id": "send_01",
+    "category": "send_invoice",
+    "description": "Envoie la facture à un client",
+    "conversationHistory": [],
+    "userMessage": "Envoie la facture à Acme",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "send_02",
+    "category": "send_invoice",
+    "description": "Envoie par numéro de facture",
+    "conversationHistory": [],
+    "userMessage": "Envoie la facture F-2024-01-001",
+    "expectedTool": "send_invoice",
+    "expectedParams": { "invoice_number": "F-2024-01-001" }
+  },
+  {
+    "id": "send_03",
+    "category": "send_invoice",
+    "description": "Envoie-la avec client",
+    "conversationHistory": [],
+    "userMessage": "Envoie-la à TechCorp",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "send_04",
+    "category": "send_invoice",
+    "description": "Formulation question : tu peux envoyer",
+    "conversationHistory": [],
+    "userMessage": "Tu peux envoyer ma facture à Design Studio ?",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "send_05",
+    "category": "send_invoice",
+    "description": "Argot : balance la fact",
+    "conversationHistory": [],
+    "userMessage": "Balance la fact à Martin par email",
+    "expectedTool": "send_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "paid_01",
+    "category": "mark_paid",
+    "description": "Virement reçu de client",
+    "conversationHistory": [],
+    "userMessage": "J'ai reçu un virement de TechCorp ce matin",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "VIREMENT" }
+  },
+  {
+    "id": "paid_02",
+    "category": "mark_paid",
+    "description": "Paiement par chèque",
+    "conversationHistory": [],
+    "userMessage": "Design Studio m'a payé par chèque hier",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "CHEQUE" }
+  },
+  {
+    "id": "paid_03",
+    "category": "mark_paid",
+    "description": "Paiement en espèces",
+    "conversationHistory": [],
+    "userMessage": "Paiement reçu en espèces de Acme",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "ESPECES" }
+  },
+  {
+    "id": "paid_04",
+    "category": "mark_paid",
+    "description": "Paiement de facture numérotée par virement",
+    "conversationHistory": [],
+    "userMessage": "La F-2024-03-005 est payée, virement reçu",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "VIREMENT" }
+  },
+  {
+    "id": "paid_05",
+    "category": "mark_paid",
+    "description": "Règlement par carte bancaire",
+    "conversationHistory": [],
+    "userMessage": "Règlement par carte bancaire reçu de SaaS Co",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "CARTE" }
+  },
+  {
+    "id": "paid_06",
+    "category": "mark_paid",
+    "description": "Argot : virement arrivé",
+    "conversationHistory": [],
+    "userMessage": "Virement arrivé de MedTech ce matin, 3500€",
+    "expectedTool": "mark_paid",
+    "expectedParams": { "payment_method": "VIREMENT" }
+  },
+  {
+    "id": "update_01",
+    "category": "update_draft",
+    "description": "Change le montant sur un brouillon",
+    "conversationHistory": [],
+    "userMessage": "Change le montant à 1500€ pour la facture Acme",
+    "expectedTool": "update_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "update_02",
+    "category": "update_draft",
+    "description": "Correction de montant sur brouillon",
+    "conversationHistory": [],
+    "userMessage": "Modifie la facture de Design Studio, c'est 900€ pas 800€",
+    "expectedTool": "update_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "update_03",
+    "category": "update_draft",
+    "description": "Ajout d'une ligne de frais sur brouillon",
+    "conversationHistory": [],
+    "userMessage": "Rajoute une ligne de frais de déplacement 200€ sur le brouillon de TechCorp",
+    "expectedTool": "update_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "update_04",
+    "category": "update_draft",
+    "description": "Changement de client sur brouillon",
+    "conversationHistory": [],
+    "userMessage": "Change le client sur le brouillon, c'est MegaCorp pas Acme",
+    "expectedTool": "update_draft",
+    "expectedParams": { "new_client_name": "MegaCorp" }
+  },
+  {
+    "id": "delete_01",
+    "category": "delete_draft",
+    "description": "Suppression d'un brouillon par client",
+    "conversationHistory": [],
+    "userMessage": "Supprime le brouillon de facture pour Acme",
+    "expectedTool": "delete_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "delete_02",
+    "category": "delete_draft",
+    "description": "Suppression d'un brouillon par numéro",
+    "conversationHistory": [],
+    "userMessage": "Supprime le brouillon F-2024-02-003",
+    "expectedTool": "delete_draft",
+    "expectedParams": { "invoice_number": "F-2024-02-003" }
+  },
+  {
+    "id": "delete_03",
+    "category": "delete_draft",
+    "description": "Effacement d'un brouillon par client",
+    "conversationHistory": [],
+    "userMessage": "Efface le brouillon que j'ai fait pour TechCorp",
+    "expectedTool": "delete_draft",
+    "expectedParams": {}
+  },
+  {
+    "id": "cancel_01",
+    "category": "cancel_invoice",
+    "description": "Annulation d'une facture envoyée",
+    "conversationHistory": [],
+    "userMessage": "Annule la facture de TechCorp",
+    "expectedTool": "cancel_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "cancel_02",
+    "category": "cancel_invoice",
+    "description": "Avoir demandé pour commande annulée",
+    "conversationHistory": [],
+    "userMessage": "La commande a été annulée, fais un avoir pour Design Studio",
+    "expectedTool": "cancel_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "cancel_03",
+    "category": "cancel_invoice",
+    "description": "Annulation d'une facture numérotée avec motif",
+    "conversationHistory": [],
+    "userMessage": "Annulation de la facture F-2024-01-002, erreur de prestation",
+    "expectedTool": "cancel_invoice",
+    "expectedParams": { "invoice_number": "F-2024-01-002" }
+  },
+  {
+    "id": "correct_01",
+    "category": "correct_invoice",
+    "description": "Correction de montant sur facture envoyée",
+    "conversationHistory": [],
+    "userMessage": "J'ai facturé 1000€ à Acme mais c'était 1200€, fais la correction",
+    "expectedTool": "correct_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "correct_02",
+    "category": "correct_invoice",
+    "description": "Correction de facture : ligne manquante",
+    "conversationHistory": [],
+    "userMessage": "Corrige la facture TechCorp, il manque une ligne de 300€",
+    "expectedTool": "correct_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "correct_03",
+    "category": "correct_invoice",
+    "description": "Refaire une facture avec bon montant",
+    "conversationHistory": [],
+    "userMessage": "La facture Design Studio a un montant incorrect, refais-la à 2500€",
+    "expectedTool": "correct_invoice",
+    "expectedParams": {}
+  },
+  {
+    "id": "revenue_01",
+    "category": "get_revenue",
+    "description": "CA du mois en cours",
+    "conversationHistory": [],
+    "userMessage": "Quel est mon CA ce mois-ci ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "month" }
+  },
+  {
+    "id": "revenue_02",
+    "category": "get_revenue",
+    "description": "CA de l'année en cours",
+    "conversationHistory": [],
+    "userMessage": "C'est quoi mon chiffre d'affaires cette année ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "year" }
+  },
+  {
+    "id": "revenue_03",
+    "category": "get_revenue",
+    "description": "CA du premier trimestre",
+    "conversationHistory": [],
+    "userMessage": "Mon CA du premier trimestre ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "quarter" }
+  },
+  {
+    "id": "revenue_04",
+    "category": "get_revenue",
+    "description": "CA d'un mois précis (février)",
+    "conversationHistory": [],
+    "userMessage": "Combien j'ai gagné en février ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "month" }
+  },
+  {
+    "id": "revenue_05",
+    "category": "get_revenue",
+    "description": "CA du mois dernier",
+    "conversationHistory": [],
+    "userMessage": "C'est quoi mon CA du mois dernier ?",
+    "expectedTool": "get_revenue",
+    "expectedParams": { "period_type": "month" }
+  },
+  {
+    "id": "export_01",
+    "category": "export_invoices",
+    "description": "Export CSV demandé explicitement",
+    "conversationHistory": [],
+    "userMessage": "Exporte mes factures en CSV",
+    "expectedTool": "export_invoices",
+    "expectedParams": {}
+  },
+  {
+    "id": "export_02",
+    "category": "export_invoices",
+    "description": "Export de toutes les factures",
+    "conversationHistory": [],
+    "userMessage": "Je veux un export de toutes mes factures",
+    "expectedTool": "export_invoices",
+    "expectedParams": {}
+  },
+  {
+    "id": "unpaid_01",
+    "category": "get_unpaid",
+    "description": "Liste des factures impayées",
+    "conversationHistory": [],
+    "userMessage": "Quelles factures sont impayées ?",
+    "expectedTool": "get_unpaid",
+    "expectedParams": {}
+  },
+  {
+    "id": "unpaid_02",
+    "category": "get_unpaid",
+    "description": "Ce qui reste en attente de paiement",
+    "conversationHistory": [],
+    "userMessage": "Qu'est-ce qui reste en attente de paiement ?",
+    "expectedTool": "get_unpaid",
+    "expectedParams": {}
+  },
+  {
+    "id": "update_client_01",
+    "category": "update_client",
+    "description": "Mise à jour de l'email d'un client",
+    "conversationHistory": [],
+    "userMessage": "Mets à jour l'email de TechCorp : contact@techcorp.fr",
+    "expectedTool": "update_client",
+    "expectedParams": { "client_name": "TechCorp" }
+  },
+  {
+    "id": "update_client_02",
+    "category": "update_client",
+    "description": "Mise à jour de l'adresse d'un client",
+    "conversationHistory": [],
+    "userMessage": "Change l'adresse de Acme, leur nouveau code postal c'est 75008, Paris",
+    "expectedTool": "update_client",
+    "expectedParams": { "client_name": "Acme" }
+  },
+  {
+    "id": "profile_01",
+    "category": "update_profile",
+    "description": "Saisie du numéro SIREN",
+    "conversationHistory": [],
+    "userMessage": "Mon SIREN c'est 123456789",
+    "expectedTool": "update_profile",
+    "expectedParams": { "siren": "123456789" }
+  },
+  {
+    "id": "profile_02",
+    "category": "update_profile",
+    "description": "Saisie de l'IBAN",
+    "conversationHistory": [],
+    "userMessage": "Mets mon IBAN FR7630006000011234567890189",
+    "expectedTool": "update_profile",
+    "expectedParams": { "iban": "FR7630006000011234567890189" }
+  },
+  {
+    "id": "setting_01",
+    "category": "configure_setting",
+    "description": "Désactivation de la confirmation avant création",
+    "conversationHistory": [],
+    "userMessage": "Désactive la confirmation avant création de facture",
+    "expectedTool": "configure_setting",
+    "expectedParams": { "setting": "confirm_before_create" }
+  },
+  {
+    "id": "setting_02",
+    "category": "configure_setting",
+    "description": "Changement du délai de paiement par défaut",
+    "conversationHistory": [],
+    "userMessage": "Mets le délai de paiement par défaut à 45 jours",
+    "expectedTool": "configure_setting",
+    "expectedParams": { "setting": "default_payment_delay_days" }
+  },
+  {
+    "id": "list_01",
+    "category": "list_clients",
+    "description": "Liste de tous les clients",
+    "conversationHistory": [],
+    "userMessage": "Montre-moi tous mes clients",
+    "expectedTool": "list_clients",
+    "expectedParams": {}
+  },
+  {
+    "id": "list_02",
+    "category": "list_clients",
+    "description": "Demande de liste clients",
+    "conversationHistory": [],
+    "userMessage": "Donne-moi la liste de mes clients",
+    "expectedTool": "list_clients",
+    "expectedParams": {}
+  },
+  {
+    "id": "history_01",
+    "category": "client_history",
+    "description": "Historique des factures d'un client",
+    "conversationHistory": [],
+    "userMessage": "Montre-moi les factures de TechCorp",
+    "expectedTool": "client_history",
+    "expectedParams": { "client_name": "TechCorp" }
+  },
+  {
+    "id": "history_02",
+    "category": "client_history",
+    "description": "Historique de facturation pour Acme",
+    "conversationHistory": [],
+    "userMessage": "Historique de facturation pour Acme Corp",
+    "expectedTool": "client_history",
+    "expectedParams": { "client_name": "Acme" }
+  },
+  {
+    "id": "conv_01",
+    "category": "conversational",
+    "description": "Salutation simple",
+    "conversationHistory": [],
+    "userMessage": "Salut Mona !",
+    "expectedTool": "conversational",
+    "expectedParams": {}
+  },
+  {
+    "id": "conv_02",
+    "category": "conversational",
+    "description": "Remerciement",
+    "conversationHistory": [],
+    "userMessage": "Merci beaucoup pour ton aide !",
+    "expectedTool": "conversational",
+    "expectedParams": {}
+  },
+  {
+    "id": "conv_03",
+    "category": "conversational",
+    "description": "Message de clôture de conversation",
+    "conversationHistory": [],
+    "userMessage": "Super, bonne journée !",
+    "expectedTool": "conversational",
+    "expectedParams": {}
+  },
+  {
+    "id": "unknown_01",
+    "category": "unknown",
+    "description": "Demande hors périmètre : commande de nourriture",
+    "conversationHistory": [],
+    "userMessage": "Commande une pizza margherita",
+    "expectedTool": "unknown",
+    "expectedParams": {}
+  },
+  {
+    "id": "unknown_02",
+    "category": "unknown",
+    "description": "Demande hors périmètre : météo",
+    "conversationHistory": [],
+    "userMessage": "Quelle est la météo à Paris aujourd'hui ?",
+    "expectedTool": "unknown",
+    "expectedParams": {}
+  }
+]
