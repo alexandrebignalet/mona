@@ -94,6 +94,8 @@ private class FiUserRepo(private val user: User?) : UserRepository {
     override suspend fun findByTelegramId(telegramId: Long): User? = user?.takeIf { it.telegramId == telegramId }
 
     override suspend fun save(user: User) {}
+
+    override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
 }
 
 private class FiClientRepo(private val client: Client?) : ClientRepository {

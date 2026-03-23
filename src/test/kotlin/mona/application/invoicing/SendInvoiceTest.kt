@@ -50,6 +50,8 @@ private class StubUserRepository(vararg users: User) : UserRepository {
     override suspend fun save(user: User) {
         store[user.id] = user
     }
+
+    override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 }
 
 private class StubClientRepository(vararg clients: Client) : ClientRepository {

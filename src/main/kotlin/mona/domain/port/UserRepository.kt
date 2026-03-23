@@ -9,4 +9,6 @@ interface UserRepository {
     suspend fun findByTelegramId(telegramId: Long): User?
 
     suspend fun save(user: User)
+
+    suspend fun findAllWithPeriodicity(): List<User>
 }

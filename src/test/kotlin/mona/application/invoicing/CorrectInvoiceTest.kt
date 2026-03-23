@@ -52,6 +52,8 @@ private class StubUserRepoCorrect(vararg users: User) : UserRepository {
     override suspend fun findByTelegramId(telegramId: Long): User? = store.values.find { it.telegramId == telegramId }
 
     override suspend fun save(user: User) {}
+
+    override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
 }
 
 private class StubClientRepoCorrect(vararg clients: Client) : ClientRepository {

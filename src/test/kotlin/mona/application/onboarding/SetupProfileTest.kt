@@ -59,6 +59,8 @@ private class InMemoryUserRepo(user: User) : UserRepository {
         store[user.id] = user
     }
 
+    override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
+
     fun get(): User? = store[USER_ID]
 }
 

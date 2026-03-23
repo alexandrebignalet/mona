@@ -88,3 +88,12 @@ object ConversationMessagesTable : Table("conversation_messages") {
 
     override val primaryKey = PrimaryKey(id)
 }
+
+object UrssafRemindersTable : Table("urssaf_reminders") {
+    val userId = varchar("user_id", 36).references(UsersTable.id)
+    val periodKey = varchar("period_key", 20)
+    val d7SentAt = timestamp("d7_sent_at").nullable()
+    val d1SentAt = timestamp("d1_sent_at").nullable()
+
+    override val primaryKey = PrimaryKey(userId, periodKey)
+}

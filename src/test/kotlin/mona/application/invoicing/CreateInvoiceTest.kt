@@ -46,6 +46,8 @@ private class InMemoryUserRepository(vararg users: User) : UserRepository {
     override suspend fun save(user: User) {
         store[user.id] = user
     }
+
+    override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 }
 
 private class InMemoryClientRepository : ClientRepository {

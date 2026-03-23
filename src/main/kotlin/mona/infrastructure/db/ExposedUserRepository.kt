@@ -34,6 +34,13 @@ class ExposedUserRepository : UserRepository {
                 ?.toUser()
         }
 
+    override suspend fun findAllWithPeriodicity(): List<User> =
+        newSuspendedTransaction {
+            UsersTable.selectAll()
+                .map { it.toUser() }
+                .filter { it.declarationPeriodicity != null }
+        }
+
     override suspend fun save(user: User) {
         newSuspendedTransaction {
             val existing =

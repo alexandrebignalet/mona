@@ -27,6 +27,7 @@ object DatabaseFactory {
                 InvoiceLineItemsTable,
                 CreditNotesTable,
                 ConversationMessagesTable,
+                UrssafRemindersTable,
             )
         }
         return db

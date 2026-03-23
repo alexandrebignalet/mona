@@ -28,6 +28,7 @@ import mona.application.payment.PaymentCheckInJob
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
 import mona.application.revenue.GetUnpaidInvoices
+import mona.application.urssaf.UrssafReminderJob
 import mona.domain.model.Cents
 import mona.domain.model.DeclarationPeriod
 import mona.domain.model.DomainEvent
@@ -40,6 +41,7 @@ import mona.infrastructure.db.DatabaseFactory
 import mona.infrastructure.db.ExposedClientRepository
 import mona.infrastructure.db.ExposedConversationRepository
 import mona.infrastructure.db.ExposedInvoiceRepository
+import mona.infrastructure.db.ExposedUrssafReminderRepository
 import mona.infrastructure.db.ExposedUserRepository
 import mona.infrastructure.email.ResendEmailAdapter
 import mona.infrastructure.llm.ClaudeApiClient
@@ -78,6 +80,7 @@ fun main() {
     val clientRepository = ExposedClientRepository()
     val invoiceRepository = ExposedInvoiceRepository()
     val conversationRepository = ExposedConversationRepository()
+    val urssafReminderRepository = ExposedUrssafReminderRepository()
 
     // Infrastructure adapters
     val cryptoAdapter = IbanCryptoAdapter(IbanCrypto.loadKeyFromEnv())
@@ -172,6 +175,27 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 paymentCheckInJob.execute(LocalDate.now(paris))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    val urssafReminderJob =
+        UrssafReminderJob(
+            userRepository = userRepository,
+            invoiceRepository = invoiceRepository,
+            reminderRepository = urssafReminderRepository,
+            conversationRepository = conversationRepository,
+            messagingPort = telegramAdapter,
+        )
+    scope.launch {
+        val paris = ZoneId.of("Europe/Paris")
+        while (isActive) {
+            val now = ZonedDateTime.now(paris)
+            val nextRun = now.toLocalDate().plusDays(1).atTime(LocalTime.of(10, 0)).atZone(paris)
+            delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
+            try {
+                urssafReminderJob.execute(LocalDate.now(paris))
             } catch (_: Exception) {
             }
         }

@@ -99,19 +99,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 12.2** (Overdue Transition Job) — Done. `OverdueTransitionJob` in `application/payment/`. Queries `findSentOverdue(today.minusDays(3))`, calls `invoice.markOverdue()`, persists, dispatches `InvoiceOverdue` events. Notification sent via existing App.kt event handler. Scheduled daily at 08:00 Paris time (before payment check-in at 09:00). 6 unit tests: no-op on empty, cutoff = today-3, Overdue status persisted, InvoiceOverdue event dispatched with correct details, multiple invoices all processed, idempotent second run.
 
-### 12.3 URSSAF Reminder Jobs
-- **Layer:** application
-- **Spec:** mvp-spec S7, tech-spec S9
-- **What:** Implement D-7 and D-1 reminder jobs. Compute next deadline per user via `UrssafThresholds.nextDeclarationDeadline()`. Compute revenue to declare via `RevenueCalculation`. Send formatted reminder with breakdown by activity type. Track acknowledgment to skip D-1 if D-7 acknowledged.
-- **Acceptance criteria:**
-  - [ ] D-7 reminder sent 7 days before deadline with pre-calculated revenue
-  - [ ] D-1 reminder sent day before deadline (skipped if D-7 acknowledged)
-  - [ ] Revenue broken down by activity type for mixed-activity users
-  - [ ] Revenue calculated on cash basis (paid_date within declaration period)
-  - [ ] Links to URSSAF portal included in response
-  - [ ] Idempotent
-  - [ ] Unit test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 12.3** (URSSAF Reminder Jobs) — Done. `UrssafReminderJob` in `application/urssaf/`. `UrssafReminderRecord` domain model and `UrssafReminderRepository` port added. `UrssafRemindersTable` added (composite PK: user_id + period_key). `ExposedUrssafReminderRepository` implemented. `UserRepository.findAllWithPeriodicity()` added. Job: for each user with periodicity, computes deadline via `UrssafThresholds.nextDeclarationDeadline(periodicity, today.minusMonths(1))` (offset ensures approaching deadline is found), checks daysUntil == 7 or 1, loads revenue via `findPaidInPeriod` + `findCreditNotesInPeriod` (cash basis), sends formatted French message with URSSAF portal link. D-1 skipped if user sent any conversation message after D-7. Both D-7 and D-1 are idempotent (sent-at timestamps stored). Scheduled daily at 10:00 Paris time in App.kt. 8 unit tests: no users, D-7 fires with revenue, D-1 fires when not acknowledged, D-1 skipped when acknowledged, D-7 idempotent, D-1 idempotent, mixed-activity breakdown, cash-basis period correctness.
 
 ### 12.4 Onboarding Recovery Job
 - **Layer:** application
