@@ -71,19 +71,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 10: LLM Integration
 
-### 10.2 Tool Definitions and Action Types
-- **Layer:** infrastructure
-- **Spec:** mvp-spec S9 (structured actions)
-- **What:** Define all Claude tool schemas mapping to structured actions: `create_invoice`, `send_invoice`, `mark_paid`, `update_draft`, `delete_draft`, `cancel_invoice`, `correct_invoice`, `get_revenue`, `export_invoices`, `get_unpaid`, `update_client`, `update_profile`, `configure_setting`, `list_clients`, `client_history`, `conversational`, `unknown`. Define Kotlin data classes for each action's parameters. Map tool call responses to action data classes.
-- **Acceptance criteria:**
-  - [ ] All 17 action types have corresponding tool definitions with JSON schemas
-  - [ ] `create_invoice` tool accepts: client name, line items (description, quantity, unit price), payment method (optional), date (optional)
-  - [ ] `mark_paid` tool accepts: invoice reference (number or client name), payment method, paid date (optional)
-  - [ ] `correct_invoice` tool accepts: invoice reference, corrections
-  - [ ] `get_revenue` tool accepts: period (month/quarter/year), comparison flag
-  - [ ] Each tool has a Kotlin data class for its parameters
-  - [ ] Parsing from Claude response JSON to data classes works for all tools
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 10.2** (Tool Definitions and Action Types) — Done. `ToolDefinitions` object in `infrastructure/llm/` with all 17 `LlmToolDefinition` instances (JSON schemas). `ParsedAction` sealed class with 17 subtypes and `ParsedLineItem` data class in `ActionTypes.kt`. `ActionParser` object parses `LlmResponse.ToolUse` input JSON to the correct `ParsedAction` subtype using kotlinx.serialization.json. Amounts in euros (BigDecimal) at parsing layer; use cases convert to Cents. 32 unit tests covering all 17 tool parsers, optional/required fields, ToolDefinitions count/names/JSON validity.
 
 ### 10.3 System Prompt and Conversation Management
 - **Layer:** infrastructure
