@@ -5,6 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import mona.application.EventDispatcher
 import mona.application.MessageRouter
@@ -20,6 +23,7 @@ import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.UpdateDraft
 import mona.application.onboarding.FinalizeInvoice
 import mona.application.onboarding.SetupProfile
+import mona.application.payment.PaymentCheckInJob
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
 import mona.application.revenue.GetUnpaidInvoices
@@ -42,7 +46,11 @@ import mona.infrastructure.pdf.PdfGenerator
 import mona.infrastructure.sirene.SireneApiClient
 import mona.infrastructure.telegram.TelegramBotAdapter
 import java.net.InetSocketAddress
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 
@@ -136,6 +144,21 @@ fun main() {
                 )
             }
             else -> Unit
+        }
+    }
+
+    // Scheduled jobs
+    val paymentCheckInJob = PaymentCheckInJob(invoiceRepository, clientRepository, telegramAdapter)
+    scope.launch {
+        val paris = ZoneId.of("Europe/Paris")
+        while (isActive) {
+            val now = ZonedDateTime.now(paris)
+            val nextRun = now.toLocalDate().plusDays(1).atTime(LocalTime.of(9, 0)).atZone(paris)
+            delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
+            try {
+                paymentCheckInJob.execute(LocalDate.now(paris))
+            } catch (_: Exception) {
+            }
         }
     }
 

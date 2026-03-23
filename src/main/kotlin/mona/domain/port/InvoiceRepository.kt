@@ -50,6 +50,8 @@ interface InvoiceRepository {
 
     suspend fun findSentOverdue(cutoffDate: LocalDate): List<Invoice>
 
+    suspend fun findSentDueOn(date: LocalDate): List<Invoice>
+
     suspend fun findByClientAndAmountSince(
         clientId: ClientId,
         amountHt: Cents,

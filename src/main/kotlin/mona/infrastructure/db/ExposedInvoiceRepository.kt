@@ -207,6 +207,19 @@ class ExposedInvoiceRepository : InvoiceRepository {
                 }
         }
 
+    override suspend fun findSentDueOn(date: LocalDate): List<Invoice> =
+        newSuspendedTransaction {
+            InvoicesTable.selectAll()
+                .where {
+                    (InvoicesTable.status eq "SENT") and
+                        (InvoicesTable.dueDate eq date)
+                }
+                .map { row ->
+                    val id = row[InvoicesTable.id]
+                    row.toInvoice(loadLineItems(id), loadCreditNote(id))
+                }
+        }
+
     override suspend fun findByClientAndAmountSince(
         clientId: ClientId,
         amountHt: Cents,

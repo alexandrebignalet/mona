@@ -109,6 +109,8 @@ private class StubInvoiceRepoUnpaid(
 
     override suspend fun findSentOverdue(cutoffDate: LocalDate): List<Invoice> = emptyList()
 
+    override suspend fun findSentDueOn(date: LocalDate): List<Invoice> = emptyList()
+
     override suspend fun findByClientAndAmountSince(
         clientId: ClientId,
         amountHt: Cents,

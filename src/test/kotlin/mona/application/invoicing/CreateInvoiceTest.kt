@@ -106,6 +106,8 @@ private class InMemoryInvoiceRepository : InvoiceRepository {
 
     override suspend fun findSentOverdue(cutoffDate: LocalDate): List<Invoice> = emptyList()
 
+    override suspend fun findSentDueOn(date: LocalDate): List<Invoice> = emptyList()
+
     override suspend fun findLastCreditNoteNumberInMonth(
         userId: UserId,
         yearMonth: YearMonth,

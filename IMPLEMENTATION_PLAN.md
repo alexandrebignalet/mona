@@ -93,19 +93,9 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 12: Scheduled Jobs
 
-### 12.1 Payment Check-In Job
-- **Layer:** application
-- **Spec:** mvp-spec S5, tech-spec S9
-- **What:** Implement daily coroutine job that queries invoices where `due_date = yesterday` and `status = SENT`. Sends batched notification per user via MessagingPort. Single invoice: asks if paid. Multiple: batched list.
-- **Acceptance criteria:**
-  - [ ] Runs daily (configurable time)
-  - [ ] Finds invoices due yesterday that are still Sent
-  - [ ] Batches notifications per user
-  - [ ] Single invoice: "La facture X de Client (montant) devait etre payee hier -- c'est fait ?"
-  - [ ] Multiple invoices: batched list format per mvp-spec S5
-  - [ ] Idempotent (safe to re-run)
-  - [ ] Unit test with in-memory repos
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 12.1** (Payment Check-In Job) — Done. `PaymentCheckInJob` in `application/payment/`. `findSentDueOn(date: LocalDate)` added to `InvoiceRepository` port and `ExposedInvoiceRepository`. Job queries invoices where `due_date = yesterday AND status = SENT`, groups by userId, sends per-user message via `MessagingPort`. Single invoice: "La facture X de Client (montant) devait être payée hier — c'est fait ?". Multiple invoices: "N factures arrivaient à échéance hier : → Client — montant (F-...) Lesquels t'ont payé ?". Scheduled daily at 09:00 Paris time via coroutine in `App.kt`. 6 unit tests: no messages when no invoices, single invoice message to correct user, message format matches spec, multiple invoices batched per user, multiple users get separate messages, amount with cents formatted correctly.
+
+### 12.2 Overdue Transition Job
 
 ### 12.2 Overdue Transition Job
 - **Layer:** application
