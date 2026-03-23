@@ -97,18 +97,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ### 12.2 Overdue Transition Job
 
-### 12.2 Overdue Transition Job
-- **Layer:** application
-- **Spec:** mvp-spec S5, tech-spec S9
-- **What:** Implement daily job that transitions Sent invoices to Overdue if `due_date < today - 3 days`. Calls `invoice.markOverdue()`, persists, dispatches events. Event handler sends one-time notification to user.
-- **Acceptance criteria:**
-  - [ ] Finds Sent invoices with due_date more than 3 days ago
-  - [ ] Transitions each to Overdue via aggregate method
-  - [ ] Persists and dispatches events
-  - [ ] User notified once per overdue invoice
-  - [ ] Idempotent
-  - [ ] Unit test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 12.2** (Overdue Transition Job) — Done. `OverdueTransitionJob` in `application/payment/`. Queries `findSentOverdue(today.minusDays(3))`, calls `invoice.markOverdue()`, persists, dispatches `InvoiceOverdue` events. Notification sent via existing App.kt event handler. Scheduled daily at 08:00 Paris time (before payment check-in at 09:00). 6 unit tests: no-op on empty, cutoff = today-3, Overdue status persisted, InvoiceOverdue event dispatched with correct details, multiple invoices all processed, idempotent second run.
 
 ### 12.3 URSSAF Reminder Jobs
 - **Layer:** application

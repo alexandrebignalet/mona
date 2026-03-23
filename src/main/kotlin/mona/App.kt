@@ -23,6 +23,7 @@ import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.UpdateDraft
 import mona.application.onboarding.FinalizeInvoice
 import mona.application.onboarding.SetupProfile
+import mona.application.payment.OverdueTransitionJob
 import mona.application.payment.PaymentCheckInJob
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
@@ -148,6 +149,20 @@ fun main() {
     }
 
     // Scheduled jobs
+    val overdueTransitionJob = OverdueTransitionJob(invoiceRepository, eventDispatcher)
+    scope.launch {
+        val paris = ZoneId.of("Europe/Paris")
+        while (isActive) {
+            val now = ZonedDateTime.now(paris)
+            val nextRun = now.toLocalDate().plusDays(1).atTime(LocalTime.of(8, 0)).atZone(paris)
+            delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
+            try {
+                overdueTransitionJob.execute(LocalDate.now(paris))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     val paymentCheckInJob = PaymentCheckInJob(invoiceRepository, clientRepository, telegramAdapter)
     scope.launch {
         val paris = ZoneId.of("Europe/Paris")
