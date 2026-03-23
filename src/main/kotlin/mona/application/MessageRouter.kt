@@ -23,6 +23,8 @@ import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.SendInvoiceCommand
 import mona.application.invoicing.UpdateDraft
 import mona.application.invoicing.UpdateDraftCommand
+import mona.application.onboarding.FinalizeInvoice
+import mona.application.onboarding.FinalizeInvoiceCommand
 import mona.application.onboarding.SetupProfile
 import mona.application.onboarding.SetupProfileCommand
 import mona.application.onboarding.SetupProfileResult
@@ -94,6 +96,7 @@ class MessageRouter(
     private val exportCsv: ExportInvoicesCsv,
     private val updateClient: UpdateClient,
     private val setupProfile: SetupProfile,
+    private val finalizeInvoice: FinalizeInvoice,
     private val listClients: ListClients,
     private val getClientHistory: GetClientHistory,
 ) {
@@ -109,6 +112,12 @@ class MessageRouter(
                 user.id,
                 "Tu as atteint la limite de messages pour aujourd'hui — on se retrouve demain !",
             )
+            return
+        }
+
+        // Handle /start command (bypasses LLM)
+        if (message.text.trimStart().startsWith("/start")) {
+            handleStartCommand(user, message.text)
             return
         }
 
@@ -129,25 +138,69 @@ class MessageRouter(
             messagingPort.sendDocument(user.id, bytes, filename, null)
         }
 
+        saveConversation(user.id, message.text, responseText)
+    }
+
+    private suspend fun saveConversation(
+        userId: UserId,
+        userText: String,
+        assistantText: String,
+    ) {
         val now = Instant.now()
         conversationRepository.save(
             ConversationMessage(
                 id = UUID.randomUUID().toString(),
-                userId = user.id,
+                userId = userId,
                 role = MessageRole.USER,
-                content = message.text,
+                content = userText,
                 createdAt = now,
             ),
         )
         conversationRepository.save(
             ConversationMessage(
                 id = UUID.randomUUID().toString(),
-                userId = user.id,
+                userId = userId,
                 role = MessageRole.ASSISTANT,
-                content = responseText,
+                content = assistantText,
                 createdAt = now.plusMillis(1),
             ),
         )
+    }
+
+    private suspend fun handleStartCommand(
+        user: User,
+        text: String,
+    ) {
+        val param = text.trimStart().removePrefix("/start").trim()
+        val responseText: String
+        val documents = mutableListOf<Pair<ByteArray, String>>()
+
+        if (param.startsWith("siren_")) {
+            val sirenDigits = param.removePrefix("siren_").filter { it.isDigit() }
+            val siren = runCatching { Siren(sirenDigits) }.getOrNull()
+            if (siren != null) {
+                when (val r = setupProfile.execute(SetupProfileCommand.LookupSiren(user.id, siren))) {
+                    is DomainResult.Ok -> {
+                        val found = (r.value as? SetupProfileResult.SirenFound)?.user
+                        val name = found?.name ?: "ton entreprise"
+                        responseText =
+                            "Bienvenue sur Mona ! J'ai retrouvé $name. " +
+                            "Dis-moi « Facture 500€ pour [Client], [prestation] » pour créer ta première facture ✓"
+                    }
+                    is DomainResult.Err -> responseText = formatDomainError(r.error)
+                }
+            } else {
+                responseText = "Ce SIREN n'est pas valide — il doit contenir 9 chiffres."
+            }
+        } else {
+            responseText =
+                "Salut ! Moi c'est Mona, je gère ta facturation en 2 secondes. " +
+                "Essaie : dis-moi « Facture 500€ pour Dupont, consulting »"
+        }
+
+        messagingPort.sendMessage(user.id, responseText)
+        documents.forEach { (bytes, filename) -> messagingPort.sendDocument(user.id, bytes, filename, null) }
+        saveConversation(user.id, text, responseText)
     }
 
     private suspend fun resolveOrCreateUser(
@@ -229,6 +282,7 @@ class MessageRouter(
                 is ParsedAction.GetUnpaid -> handleGetUnpaid(user)
                 is ParsedAction.UpdateClient -> handleUpdateClient(user, action)
                 is ParsedAction.UpdateProfile -> handleUpdateProfile(user, action)
+                is ParsedAction.SearchSiren -> handleSearchSiren(user, action)
                 is ParsedAction.ConfigureSetting -> handleConfigureSetting(user, action)
                 is ParsedAction.ListClients -> handleListClients(user)
                 is ParsedAction.ClientHistory -> handleClientHistory(user, action)
@@ -267,9 +321,15 @@ class MessageRouter(
                 when (val r = result.value) {
                     is CreateInvoiceResult.Created -> {
                         val text =
-                            "Facture ${r.invoice.number.value} créée ✓\n" +
-                                "📄 PDF en pièce jointe.\n" +
-                                "Je l'envoie par mail à ${action.clientName} ?"
+                            if (user.siren == null) {
+                                "Voilà un aperçu de ta facture ✓\n📄 PDF BROUILLON en pièce jointe.\n" +
+                                    "Pour la finaliser, j'ai besoin de ton numéro SIREN — c'est quoi ?\n" +
+                                    "(Tu le trouves sur autoentrepreneur.urssaf.fr ou ton certificat INSEE)"
+                            } else {
+                                "Facture ${r.invoice.number.value} créée ✓\n" +
+                                    "📄 PDF en pièce jointe.\n" +
+                                    "Je l'envoie par mail à ${action.clientName} ?"
+                            }
                         Pair(text, listOf(Pair(r.pdf, "${r.invoice.number.value}.pdf")))
                     }
                     is CreateInvoiceResult.DuplicateWarning -> {
@@ -522,8 +582,11 @@ class MessageRouter(
             return when (val r = setupProfile.execute(SetupProfileCommand.LookupSiren(user.id, siren))) {
                 is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
                 is DomainResult.Ok -> {
-                    val name = (r.value as? SetupProfileResult.SirenFound)?.user?.name ?: "ton entreprise"
-                    Pair("Parfait ✓ J'ai trouvé $name. Tu veux confirmer ces informations ?", emptyList())
+                    val found = (r.value as? SetupProfileResult.SirenFound)?.user
+                    val profileText = buildProfileConfirmText(found)
+                    val plainIban = found?.ibanEncrypted?.let { cryptoPort.decrypt(it) }
+                    val draftPdfs = finalizeDraftInvoices(user.id, plainIban)
+                    Pair(profileText, draftPdfs)
                 }
             }
         }
@@ -553,6 +616,57 @@ class MessageRouter(
         return when (val r = setupProfile.execute(updateCmd)) {
             is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
             is DomainResult.Ok -> Pair("Profil mis à jour ✓", emptyList())
+        }
+    }
+
+    private suspend fun handleSearchSiren(
+        user: User,
+        action: ParsedAction.SearchSiren,
+    ): RouteResult {
+        return when (val r = setupProfile.execute(SetupProfileCommand.SearchSiren(user.id, action.name, action.city))) {
+            is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
+            is DomainResult.Ok -> {
+                val matches = (r.value as? SetupProfileResult.SirenMatches)?.matches ?: emptyList()
+                if (matches.isEmpty()) {
+                    return Pair(
+                        "Je n'ai rien trouvé sous ce nom dans cette ville. " +
+                            "Tu peux vérifier l'orthographe ou me donner ton SIREN directement ?",
+                        emptyList(),
+                    )
+                }
+                val lines = mutableListOf<String>()
+                lines += "J'ai trouvé ${matches.size} résultat${if (matches.size > 1) "s" else ""} :"
+                matches.forEachIndexed { i, match ->
+                    val addr = match.address?.let { ", ${it.street}, ${it.postalCode} ${it.city}" } ?: ""
+                    val activity = match.activityType?.let { ", ${activityTypeLabel(it)}" } ?: ""
+                    lines += "${i + 1}. ${match.legalName} (SIREN : ${match.siren.value})$addr$activity"
+                }
+                lines += "C'est laquelle ?"
+                Pair(lines.joinToString("\n"), emptyList())
+            }
+        }
+    }
+
+    private fun buildProfileConfirmText(user: User?): String {
+        if (user == null) return "Parfait ✓ SIREN enregistré. On part là-dessus ?"
+        val parts = mutableListOf<String>()
+        if (user.address != null) parts += "${user.address.street}, ${user.address.postalCode} ${user.address.city}"
+        if (user.activityType != null) parts += activityTypeLabel(user.activityType)
+        val name = user.name ?: "ton entreprise"
+        val details = if (parts.isNotEmpty()) " — ${parts.joinToString(", ")}" else ""
+        return "J'ai trouvé $name$details. On part là-dessus ?"
+    }
+
+    private suspend fun finalizeDraftInvoices(
+        userId: UserId,
+        plainIban: String?,
+    ): List<Pair<ByteArray, String>> {
+        val drafts = invoiceRepository.findByUser(userId).filter { it.status is InvoiceStatus.Draft }
+        return drafts.mapNotNull { invoice ->
+            when (val fr = finalizeInvoice.execute(FinalizeInvoiceCommand(userId, invoice.id, plainIban))) {
+                is DomainResult.Ok -> Pair(fr.value.pdf, "${invoice.number.value}.pdf")
+                is DomainResult.Err -> null
+            }
         }
     }
 

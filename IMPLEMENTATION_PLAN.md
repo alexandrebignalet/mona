@@ -83,19 +83,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 11.1** (Message Router) — Done. `MessageRouter` in `application/` orchestrates all 17 action types. User resolved or created by telegramId on first contact. Loads last 3 conversation messages for Claude context via `PromptBuilder`. Calls `LlmPort` → parses `LlmResponse` via `ActionParser` → routes to appropriate use case. Formats French response strings inline. Sends text + PDF/CSV documents via `MessagingPort`. Persists USER + ASSISTANT messages to `ConversationRepository`. In-memory rate limiting: 200 messages/user/day (resets at midnight). Top-level `try-catch` in `handleAction` returns friendly French error. `formatDomainError` maps all 14 `DomainError` subtypes to French. 11 unit tests covering: user creation, rate limit, LLM error, text forwarding, conversational routing, unknown routing, create_invoice routing + PDF, get_unpaid empty, configure_setting persistence, conversation message persistence.
 
-### 11.2 Onboarding Flow Integration
-- **Layer:** application
-- **Spec:** mvp-spec S1
-- **What:** Integrate progressive onboarding into the message router. After first invoice creation, prompt for SIREN. Handle SIREN entry (direct or search). Walk through profile confirmation, payment terms, IBAN, email, URSSAF periodicity. Handle `/start` with deep link pre-fill.
-- **Acceptance criteria:**
-  - [ ] First invoice creates draft with BROUILLON watermark
-  - [ ] After first invoice, Mona asks for SIREN
-  - [ ] Direct SIREN entry triggers SIRENE lookup and profile auto-fill
-  - [ ] "Je sais pas" triggers name+city search flow
-  - [ ] Profile confirmation, payment terms, IBAN, email collected in sequence
-  - [ ] `/start=siren_XXXXXXXXX` deep link pre-fills SIREN
-  - [ ] Draft invoice re-generated without watermark after SIREN provided
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 11.2** (Onboarding Flow Integration) — Done. Progressive onboarding integrated into `MessageRouter`. `search_siren` tool added to `ToolDefinitions` (18 tools total) and `ParsedAction`. `handleStartCommand` handles `/start` and `/start siren_XXXXXXXXX` deep links — pre-fills SIREN via `SetupProfile.LookupSiren` and returns welcome with company name. `handleCreateInvoice` detects user has no SIREN and returns BROUILLON message + SIREN request instead of the usual "créée ✓" message. `handleUpdateProfile` with SIREN: builds profile confirmation text with auto-filled name/address/activity, then calls `finalizeDraftInvoices` to regenerate draft PDFs without BROUILLON watermark. `handleSearchSiren` calls `SetupProfile.SearchSiren` and formats numbered matches with SIREN numbers visible for Claude to resolve selection. `PromptBuilder.SYSTEM_PROMPT` extended with onboarding guidance (search_siren for unknown SIREN, progressive payment terms → IBAN → email after SIREN confirmation). `buildUserContext` adds `has_iban` and `has_email` flags. `saveConversation` extracted as helper, used by both `/start` handler and main flow. 3 golden test cases added for `search_siren`. `ActionParserTest` updated to 18 tools. 6 new unit tests covering: `/start` welcome, `/start` deep link SIREN pre-fill, create invoice without SIREN (BROUILLON prompt), create invoice with SIREN (normal response), SIREN lookup finalizes drafts + profile confirm, search_siren routing with matches.
 
 ### 11.3 Confirmation Flow
 - **Layer:** application

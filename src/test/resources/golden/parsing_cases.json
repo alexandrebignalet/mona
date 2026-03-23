@@ -585,6 +585,35 @@
     "expectedParams": {}
   },
   {
+    "id": "search_siren_01",
+    "category": "search_siren",
+    "description": "Utilisateur ne connaît pas son SIREN, fournit nom et ville",
+    "conversationHistory": [],
+    "userMessage": "Je sais pas mon SIREN — je m'appelle Sophie Martin et je suis à Paris",
+    "expectedTool": "search_siren",
+    "expectedParams": { "name": "Sophie Martin", "city": "Paris" }
+  },
+  {
+    "id": "search_siren_02",
+    "category": "search_siren",
+    "description": "Formulation argotique : je connais pas mon numéro",
+    "conversationHistory": [],
+    "userMessage": "Je connais pas mon numéro SIREN, je suis inscrit sous Jean Dupont à Lyon",
+    "expectedTool": "search_siren",
+    "expectedParams": { "name": "Jean Dupont", "city": "Lyon" }
+  },
+  {
+    "id": "search_siren_03",
+    "category": "search_siren",
+    "description": "Recherche directe après invitation de Mona à donner nom et ville",
+    "conversationHistory": [
+      {"role": "assistant", "content": "Pas de souci — tu t'es inscrit sous quel nom ? Et dans quelle ville ?"}
+    ],
+    "userMessage": "Marie Leclerc, Bordeaux",
+    "expectedTool": "search_siren",
+    "expectedParams": { "name": "Marie Leclerc", "city": "Bordeaux" }
+  },
+  {
     "id": "unknown_01",
     "category": "unknown",
     "description": "Demande hors périmètre : commande de nourriture",

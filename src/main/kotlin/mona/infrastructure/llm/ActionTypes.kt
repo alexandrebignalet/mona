@@ -112,6 +112,11 @@ sealed class ParsedAction {
         val clientName: String,
     ) : ParsedAction()
 
+    data class SearchSiren(
+        val name: String,
+        val city: String,
+    ) : ParsedAction()
+
     data class Conversational(
         val response: String,
     ) : ParsedAction()
@@ -142,6 +147,7 @@ object ActionParser {
             "get_unpaid" -> ParsedAction.GetUnpaid
             "update_client" -> parseUpdateClient(obj)
             "update_profile" -> parseUpdateProfile(obj)
+            "search_siren" -> ParsedAction.SearchSiren(obj.str("name"), obj.str("city"))
             "configure_setting" -> ParsedAction.ConfigureSetting(obj.str("setting"), obj.str("value"))
             "list_clients" -> ParsedAction.ListClients
             "client_history" -> ParsedAction.ClientHistory(obj.str("client_name"))

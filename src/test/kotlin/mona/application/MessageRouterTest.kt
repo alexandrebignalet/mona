@@ -11,6 +11,7 @@ import mona.application.invoicing.DeleteDraft
 import mona.application.invoicing.MarkInvoicePaid
 import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.UpdateDraft
+import mona.application.onboarding.FinalizeInvoice
 import mona.application.onboarding.SetupProfile
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
@@ -33,6 +34,7 @@ import mona.domain.model.InvoiceStatus
 import mona.domain.model.LineItem
 import mona.domain.model.PaidInvoiceSnapshot
 import mona.domain.model.PaymentDelayDays
+import mona.domain.model.PostalAddress
 import mona.domain.model.User
 import mona.domain.model.UserId
 import mona.domain.port.Button
@@ -288,6 +290,7 @@ private fun makeRouter(
     llmPort: LlmPort = StubLlmPort(DomainResult.Ok(LlmResponse.Text("Bonjour !"))),
     messagingPort: FakeMessagingPort = FakeMessagingPort(),
     cryptoPort: CryptoPort = FakeCryptoPort(),
+    sirenePort: mona.domain.port.SirenePort = FakeSirenePort(),
 ): Triple<MessageRouter, FakeMessagingPort, InMemoryConversationRepository> {
     val pdf = FakePdfPort()
     val dispatcher = EventDispatcher()
@@ -311,11 +314,22 @@ private fun makeRouter(
             getUnpaid = GetUnpaidInvoices(invoiceRepo, clientRepo),
             exportCsv = ExportInvoicesCsv(invoiceRepo, clientRepo),
             updateClient = UpdateClient(clientRepo),
-            setupProfile = SetupProfile(userRepo, FakeSirenePort(), cryptoPort),
+            setupProfile = SetupProfile(userRepo, sirenePort, cryptoPort),
+            finalizeInvoice = FinalizeInvoice(userRepo, clientRepo, invoiceRepo, pdf),
             listClients = ListClients(clientRepo, invoiceRepo),
             getClientHistory = GetClientHistory(clientRepo, invoiceRepo),
         )
     return Triple(router, messagingPort, conversationRepo)
+}
+
+private class SuccessSirenePort(private val result: mona.domain.port.SireneResult) : mona.domain.port.SirenePort {
+    override suspend fun lookupBySiren(siren: mona.domain.model.Siren): DomainResult<mona.domain.port.SireneResult> =
+        DomainResult.Ok(result)
+
+    override suspend fun searchByNameAndCity(
+        name: String,
+        city: String,
+    ): DomainResult<List<mona.domain.port.SireneResult>> = DomainResult.Ok(listOf(result))
 }
 
 private class FakeEmailPort : mona.domain.port.EmailPort {
@@ -507,8 +521,8 @@ class MessageRouterTest {
             // Invoice was created in the repo
             assertEquals(1, invoiceRepo.store.size)
 
-            // Text message sent
-            assertTrue(messaging.sentMessages[0].second.contains("créée ✓"))
+            // Text message sent (user has no SIREN, so BROUILLON response)
+            assertTrue(messaging.sentMessages[0].second.contains("✓"))
             // PDF document sent
             assertEquals(1, messaging.sentDocuments.size)
             assertTrue(messaging.sentDocuments[0].second.endsWith(".pdf"))
@@ -573,4 +587,219 @@ class MessageRouterTest {
         // Direct helper test via reflection would be fragile; rely on integration coverage
         // Cents formatting validated via get_revenue output
     }
+
+    // --- Onboarding flow tests ---
+
+    @Test
+    fun `start command without param sends welcome message`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "/start", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("Mona"), "Expected welcome mentioning Mona, got: $msg")
+        }
+
+    @Test
+    fun `start command with deep link siren pre-fills profile`() =
+        runBlocking {
+            val user = makeUser(id = UserId("u-start"))
+            val sireneResult =
+                SireneResult(
+                    legalName = "Sophie Martin",
+                    siren = mona.domain.model.Siren("123456789"),
+                    siret = mona.domain.model.Siret("12345678900001"),
+                    address = PostalAddress("12 rue de la Paix", "75002", "Paris"),
+                    activityType = ActivityType.BNC,
+                )
+            val userRepo = InMemoryUserRepository(user)
+            val messaging = FakeMessagingPort()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = userRepo,
+                    messagingPort = messaging,
+                    sirenePort = SuccessSirenePort(sireneResult),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "/start siren_123456789", userId = user.id))
+            val updatedUser = userRepo.findById(user.id)
+            assertEquals(mona.domain.model.Siren("123456789"), updatedUser?.siren)
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("Sophie Martin"), "Expected company name in response, got: $msg")
+        }
+
+    @Test
+    fun `create_invoice for user without siren appends siren request`() =
+        runBlocking {
+            val user = makeUser() // siren = null
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """
+                                {
+                                  "client_name": "Dupont",
+                                  "line_items": [{"description": "Coaching", "quantity": 1, "unit_price_euros": 800}]
+                                }
+                                """.trimIndent(),
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("BROUILLON"), "Expected BROUILLON in response, got: $msg")
+            assertTrue(msg.contains("SIREN"), "Expected SIREN prompt in response, got: $msg")
+        }
+
+    @Test
+    fun `create_invoice for user with siren does not append siren request`() =
+        runBlocking {
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"))
+            val client =
+                mona.domain.model.Client(
+                    id = ClientId("c1"),
+                    userId = user.id,
+                    name = "Dupont",
+                    companyName = null,
+                    email = null,
+                    address = null,
+                    siret = null,
+                    createdAt = BASE_INSTANT,
+                )
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """
+                                {
+                                  "client_name": "Dupont",
+                                  "line_items": [{"description": "Coaching", "quantity": 1, "unit_price_euros": 800}]
+                                }
+                                """.trimIndent(),
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    clientRepo = InMemoryClientRepository(client),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("créée ✓"), "Expected 'créée ✓' in response, got: $msg")
+            assertTrue(!msg.contains("SIREN"), "Expected no SIREN prompt for user with SIREN, got: $msg")
+        }
+
+    @Test
+    fun `update_profile with siren lookup finalizes existing draft invoices`() =
+        runBlocking {
+            val user = makeUser() // no siren
+            val client =
+                mona.domain.model.Client(
+                    id = ClientId("c1"),
+                    userId = user.id,
+                    name = "Martin",
+                    companyName = null,
+                    email = null,
+                    address = null,
+                    siret = null,
+                    createdAt = BASE_INSTANT,
+                )
+            val draftInvoice = makeInvoice(userId = user.id, clientId = client.id)
+            val sireneResult =
+                SireneResult(
+                    legalName = "Sophie Martin",
+                    siren = mona.domain.model.Siren("123456789"),
+                    siret = mona.domain.model.Siret("12345678900001"),
+                    address = PostalAddress("12 rue de la Paix", "75002", "Paris"),
+                    activityType = ActivityType.BNC,
+                )
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "update_profile",
+                            toolUseId = "id1",
+                            inputJson = """{"siren": "123456789"}""",
+                        ),
+                    ),
+                )
+            val userRepo = InMemoryUserRepository(user)
+            val invoiceRepo = InMemoryInvoiceRepository(draftInvoice)
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = userRepo,
+                    invoiceRepo = invoiceRepo,
+                    clientRepo = InMemoryClientRepository(client),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                    sirenePort = SuccessSirenePort(sireneResult),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "123456789", userId = user.id))
+            // Profile confirmation message sent
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("Sophie Martin"), "Expected company name in response, got: $msg")
+            assertTrue(msg.contains("là-dessus"), "Expected confirmation question, got: $msg")
+            // Finalized PDF sent
+            assertEquals(1, messaging.sentDocuments.size)
+            assertTrue(messaging.sentDocuments[0].second.endsWith(".pdf"))
+        }
+
+    @Test
+    fun `routes search_siren and formats matches`() =
+        runBlocking {
+            val user = makeUser()
+            val sireneResult =
+                SireneResult(
+                    legalName = "Marie Leclerc",
+                    siren = mona.domain.model.Siren("987654321"),
+                    siret = mona.domain.model.Siret("98765432100001"),
+                    address = PostalAddress("8 av. Foch", "33000", "Bordeaux"),
+                    activityType = ActivityType.BNC,
+                )
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "search_siren",
+                            toolUseId = "id1",
+                            inputJson = """{"name": "Marie Leclerc", "city": "Bordeaux"}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                    sirenePort = SuccessSirenePort(sireneResult),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Marie Leclerc Bordeaux", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("Marie Leclerc"), "Expected name in results, got: $msg")
+            assertTrue(msg.contains("987654321"), "Expected SIREN in results, got: $msg")
+            assertTrue(msg.contains("C'est laquelle"), "Expected disambiguation question, got: $msg")
+        }
 }

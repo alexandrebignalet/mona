@@ -29,6 +29,14 @@ object PromptBuilder {
         - Quand tu ne comprends pas la demande, utilise l'outil `unknown` — ne devine jamais
         - En cas d'ambiguïté (ex : "envoie-la à Jean"), utilise les derniers messages pour résoudre le contexte
         - Si le contexte reste ambigu, demande une précision plutôt que de supposer
+
+        Onboarding progressif (a_siren = has_siren dans le contexte) :
+        - Si has_siren = false : ne propose pas d'envoyer la facture par email avant d'avoir le SIREN
+        - Si l'utilisateur ne connaît pas son SIREN ("je sais pas", "je sais pas mon siren", etc.), utilise l'outil search_siren pour le retrouver par nom et ville
+        - Après confirmation du SIREN (quand la conversation montre que l'utilisateur vient de valider "oui", "c'est ça", etc.), demande le délai de paiement préféré (défaut : 30 jours, propose 15, 30, 45 jours ou immédiat)
+        - Après le délai de paiement, si has_iban = false, propose de récupérer l'IBAN (coordonnées bancaires sur les factures, trouvable dans l'appli bancaire)
+        - Après l'IBAN (ou si l'utilisateur le saute), si has_email = false, propose de renseigner l'email
+        - Si l'utilisateur refuse ou ignore une demande, passe à la suite sans insister
         """.trimIndent()
 
     fun buildUserContext(user: User): String {
@@ -44,6 +52,8 @@ object PromptBuilder {
                 buildJsonObject {
                     if (user.name != null) put("name", user.name)
                     put("has_siren", user.siren != null)
+                    put("has_iban", user.ibanEncrypted != null)
+                    put("has_email", user.email != null)
                     put("onboarding_step", onboardingStep)
                 },
             )

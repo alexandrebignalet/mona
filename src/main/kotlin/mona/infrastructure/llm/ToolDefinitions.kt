@@ -305,6 +305,25 @@ object ToolDefinitions {
                 """.trimIndent(),
         )
 
+    private val searchSirenTool =
+        LlmToolDefinition(
+            name = "search_siren",
+            description =
+                "Chercher une entreprise dans la base SIRENE par nom et ville. " +
+                    "Utiliser quand l'utilisateur ne connait pas son SIREN.",
+            inputSchemaJson =
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string", "description": "Nom de l'entreprise ou nom d'inscription"},
+                    "city": {"type": "string", "description": "Ville de l'entreprise"}
+                  },
+                  "required": ["name", "city"]
+                }
+                """.trimIndent(),
+        )
+
     private val conversationalTool =
         LlmToolDefinition(
             name = "conversational",
@@ -354,6 +373,7 @@ object ToolDefinitions {
             getUnpaidTool,
             updateClientTool,
             updateProfileTool,
+            searchSirenTool,
             configureSettingTool,
             listClientsTool,
             clientHistoryTool,
