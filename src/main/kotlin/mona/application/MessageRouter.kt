@@ -71,10 +71,20 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 private typealias RouteResult = Pair<String, List<Pair<ByteArray, String>>>
+
+private data class PendingConfirmation(
+    val command: CreateInvoiceCommand,
+    val displayClientName: String,
+)
+
+private val CONFIRM_TOKENS = setOf("ok", "oui", "confirme", "c'est bon", "vas-y", "go", "yes")
+private val CANCEL_TOKENS = setOf("non", "annule", "annuler", "cancel", "no", "stop", "nope")
+private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
 class MessageRouter(
     private val userRepository: UserRepository,
@@ -102,6 +112,7 @@ class MessageRouter(
 ) {
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
+    private val pendingConfirmationMap = ConcurrentHashMap<String, PendingConfirmation>()
 
     suspend fun handle(message: IncomingMessage) {
         val today = LocalDate.now()
@@ -119,6 +130,40 @@ class MessageRouter(
         if (message.text.trimStart().startsWith("/start")) {
             handleStartCommand(user, message.text)
             return
+        }
+
+        // Handle pending invoice confirmation (bypasses LLM for simple yes/no)
+        val pending = pendingConfirmationMap[user.id.value]
+        if (pending != null) {
+            val lower = message.text.trim().lowercase()
+
+            // A token matches as a standalone yes/no only if nothing meaningful follows it.
+            // "non, c'est 900€" must fall through to LLM as a correction, not be treated as cancel.
+            fun isStandaloneToken(tokens: Set<String>): Boolean =
+                tokens.any { token ->
+                    lower.startsWith(token) &&
+                        lower.substring(token.length).all { c -> !c.isLetterOrDigit() }
+                }
+            when {
+                isStandaloneToken(CONFIRM_TOKENS) -> {
+                    pendingConfirmationMap.remove(user.id.value)
+                    val (responseText, documents) = executePendingCreate(user, pending)
+                    messagingPort.sendMessage(user.id, responseText)
+                    documents.forEach { (bytes, filename) ->
+                        messagingPort.sendDocument(user.id, bytes, filename, null)
+                    }
+                    saveConversation(user.id, message.text, responseText)
+                    return
+                }
+                isStandaloneToken(CANCEL_TOKENS) -> {
+                    pendingConfirmationMap.remove(user.id.value)
+                    val cancelText = "Annulé ✓ La facture n'a pas été créée."
+                    messagingPort.sendMessage(user.id, cancelText)
+                    saveConversation(user.id, message.text, cancelText)
+                    return
+                }
+                // Otherwise fall through to LLM (user is correcting the pending invoice)
+            }
         }
 
         val recentMessages = conversationRepository.findRecent(user.id, 3)
@@ -315,7 +360,27 @@ class MessageRouter(
                 activityType = activityType,
                 paymentDelay = paymentDelay,
             )
-        return when (val result = createInvoice.execute(command)) {
+
+        // Show confirmation summary when user is fully onboarded and confirmBeforeCreate is enabled
+        if (user.siren != null && user.confirmBeforeCreate) {
+            pendingConfirmationMap[user.id.value] = PendingConfirmation(command, action.clientName)
+            return Pair(buildConfirmationText(action.clientName, lineItems, issueDate), emptyList())
+        }
+
+        return executeCreate(user, action.clientName, command)
+    }
+
+    private suspend fun executePendingCreate(
+        user: User,
+        pending: PendingConfirmation,
+    ): RouteResult = executeCreate(user, pending.displayClientName, pending.command)
+
+    private suspend fun executeCreate(
+        user: User,
+        displayClientName: String,
+        command: CreateInvoiceCommand,
+    ): RouteResult =
+        when (val result = createInvoice.execute(command)) {
             is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
             is DomainResult.Ok ->
                 when (val r = result.value) {
@@ -328,19 +393,37 @@ class MessageRouter(
                             } else {
                                 "Facture ${r.invoice.number.value} créée ✓\n" +
                                     "📄 PDF en pièce jointe.\n" +
-                                    "Je l'envoie par mail à ${action.clientName} ?"
+                                    "Je l'envoie par mail à $displayClientName ?"
                             }
                         Pair(text, listOf(Pair(r.pdf, "${r.invoice.number.value}.pdf")))
                     }
                     is CreateInvoiceResult.DuplicateWarning -> {
                         val amount = formatCents(r.invoice.amountHt)
                         val text =
-                            "Tu m'as déjà demandé une facture de $amount pour ${action.clientName} " +
+                            "Tu m'as déjà demandé une facture de $amount pour $displayClientName " +
                                 "(${r.existingNumber.value}). C'est une deuxième facture ou un doublon ?"
                         Pair(text, listOf(Pair(r.pdf, "${r.invoice.number.value}.pdf")))
                     }
                 }
         }
+
+    private fun buildConfirmationText(
+        clientName: String,
+        lineItems: List<LineItem>,
+        issueDate: LocalDate,
+    ): String {
+        val sb = StringBuilder()
+        sb.append("Je crée cette facture ?\n")
+        sb.append("→ Client : $clientName\n")
+        lineItems.forEach { item ->
+            val qty = item.quantity.stripTrailingZeros().toPlainString()
+            sb.append("→ ${qty}x ${item.description} — ${formatCents(item.unitPriceHt)} HT\n")
+        }
+        val total = lineItems.fold(Cents(0)) { acc, item -> acc + item.totalHt }
+        sb.append("→ Total : ${formatCents(total)} HT\n")
+        sb.append("→ Date : ${issueDate.format(DATE_FORMATTER)}\n")
+        sb.append("Confirme avec OK ou corrige-moi ✏️")
+        return sb.toString()
     }
 
     private suspend fun handleSendInvoice(

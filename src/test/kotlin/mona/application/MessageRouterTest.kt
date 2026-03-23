@@ -666,19 +666,53 @@ class MessageRouterTest {
         }
 
     @Test
-    fun `create_invoice for user with siren does not append siren request`() =
+    fun `create_invoice for user with siren and confirmBeforeCreate=true shows confirmation`() =
         runBlocking {
-            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"))
-            val client =
-                mona.domain.model.Client(
-                    id = ClientId("c1"),
-                    userId = user.id,
-                    name = "Dupont",
-                    companyName = null,
-                    email = null,
-                    address = null,
-                    siret = null,
-                    createdAt = BASE_INSTANT,
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789")) // confirmBeforeCreate=true by default
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """
+                                {
+                                  "client_name": "Dupont",
+                                  "line_items": [{"description": "Coaching", "quantity": 1, "unit_price_euros": 800}]
+                                }
+                                """.trimIndent(),
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            // Confirmation summary shown — invoice NOT yet created
+            assertTrue(msg.contains("Je crée cette facture"), "Expected confirmation question, got: $msg")
+            assertTrue(msg.contains("Dupont"), "Expected client name in confirmation, got: $msg")
+            assertTrue(msg.contains("Coaching"), "Expected line item in confirmation, got: $msg")
+            assertTrue(msg.contains("800"), "Expected amount in confirmation, got: $msg")
+            assertTrue(msg.contains("Confirme"), "Expected confirm prompt, got: $msg")
+            assertEquals(0, invoiceRepo.store.size, "Invoice must not be created before confirmation")
+            assertEquals(0, messaging.sentDocuments.size, "No PDF before confirmation")
+        }
+
+    @Test
+    fun `create_invoice for user with siren and confirmBeforeCreate=false creates immediately`() =
+        runBlocking {
+            val user =
+                makeUser().copy(
+                    siren = mona.domain.model.Siren("123456789"),
+                    confirmBeforeCreate = false,
                 )
             val messaging = FakeMessagingPort()
             val llm =
@@ -697,10 +731,11 @@ class MessageRouterTest {
                         ),
                     ),
                 )
+            val invoiceRepo = InMemoryInvoiceRepository()
             val (router, _, _) =
                 makeRouter(
                     userRepo = InMemoryUserRepository(user),
-                    clientRepo = InMemoryClientRepository(client),
+                    invoiceRepo = invoiceRepo,
                     messagingPort = messaging,
                     llmPort = llm,
                 )
@@ -708,6 +743,144 @@ class MessageRouterTest {
             val msg = messaging.sentMessages[0].second
             assertTrue(msg.contains("créée ✓"), "Expected 'créée ✓' in response, got: $msg")
             assertTrue(!msg.contains("SIREN"), "Expected no SIREN prompt for user with SIREN, got: $msg")
+            assertEquals(1, invoiceRepo.store.size, "Invoice must be created immediately")
+        }
+
+    @Test
+    fun `pending confirmation confirmed with ok creates invoice`() =
+        runBlocking {
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"))
+            val messaging = FakeMessagingPort()
+            val createLlm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """
+                                {
+                                  "client_name": "Dupont",
+                                  "line_items": [{"description": "Coaching", "quantity": 1, "unit_price_euros": 800}]
+                                }
+                                """.trimIndent(),
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = createLlm,
+                )
+            // First message: triggers confirmation
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(0, invoiceRepo.store.size, "Invoice not created before confirmation")
+            // Second message: confirm
+            router.handle(IncomingMessage(telegramId = 100L, text = "ok", userId = user.id))
+            assertEquals(1, invoiceRepo.store.size, "Invoice created after confirmation")
+            val confirmMsg = messaging.sentMessages[1].second
+            assertTrue(confirmMsg.contains("créée ✓"), "Expected creation confirmation, got: $confirmMsg")
+            assertEquals(1, messaging.sentDocuments.size, "PDF sent after confirmation")
+        }
+
+    @Test
+    fun `pending confirmation cancelled with annule discards without creating`() =
+        runBlocking {
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"))
+            val messaging = FakeMessagingPort()
+            val createLlm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """
+                                {
+                                  "client_name": "Dupont",
+                                  "line_items": [{"description": "Coaching", "quantity": 1, "unit_price_euros": 800}]
+                                }
+                                """.trimIndent(),
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = createLlm,
+                )
+            // First message: triggers confirmation
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            // Second message: cancel
+            router.handle(IncomingMessage(telegramId = 100L, text = "annule", userId = user.id))
+            assertEquals(0, invoiceRepo.store.size, "Invoice must not be created after cancellation")
+            val cancelMsg = messaging.sentMessages[1].second
+            assertTrue(cancelMsg.contains("Annulé ✓"), "Expected cancellation message, got: $cancelMsg")
+        }
+
+    @Test
+    fun `pending confirmation correction replaces pending and shows updated summary`() =
+        runBlocking {
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"))
+            val messaging = FakeMessagingPort()
+            // First call returns create_invoice for 800€, second call returns create_invoice for 900€
+            val json800 =
+                """{"client_name":"Dupont","line_items":[{"description":"Coaching","quantity":1,"unit_price_euros":800}]}"""
+            val json900 =
+                """{"client_name":"Dupont","line_items":[{"description":"Coaching","quantity":1,"unit_price_euros":900}]}"""
+            var callCount = 0
+            val correctionLlm =
+                object : LlmPort {
+                    override suspend fun complete(
+                        systemPrompt: String,
+                        userContextJson: String,
+                        messages: List<mona.domain.port.ConversationMessage>,
+                        tools: List<LlmToolDefinition>,
+                    ): DomainResult<LlmResponse> {
+                        callCount++
+                        return if (callCount == 1) {
+                            DomainResult.Ok(
+                                LlmResponse.ToolUse(
+                                    toolName = "create_invoice",
+                                    toolUseId = "id1",
+                                    inputJson = json800,
+                                ),
+                            )
+                        } else {
+                            DomainResult.Ok(
+                                LlmResponse.ToolUse(
+                                    toolName = "create_invoice",
+                                    toolUseId = "id2",
+                                    inputJson = json900,
+                                ),
+                            )
+                        }
+                    }
+                }
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = correctionLlm,
+                )
+            // First message: triggers confirmation with 800€
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            val firstMsg = messaging.sentMessages[0].second
+            assertTrue(firstMsg.contains("800"), "Expected 800 in first confirmation, got: $firstMsg")
+            // Second message: correction (falls through to LLM, which returns new create_invoice with 900€)
+            router.handle(IncomingMessage(telegramId = 100L, text = "non, c'est 900€", userId = user.id))
+            val secondMsg = messaging.sentMessages[1].second
+            assertTrue(secondMsg.contains("Je crée cette facture"), "Expected new confirmation, got: $secondMsg")
+            assertTrue(secondMsg.contains("900"), "Expected 900 in corrected confirmation, got: $secondMsg")
+            assertEquals(0, invoiceRepo.store.size, "Invoice still not created after correction")
         }
 
     @Test

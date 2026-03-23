@@ -85,17 +85,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 11.2** (Onboarding Flow Integration) — Done. Progressive onboarding integrated into `MessageRouter`. `search_siren` tool added to `ToolDefinitions` (18 tools total) and `ParsedAction`. `handleStartCommand` handles `/start` and `/start siren_XXXXXXXXX` deep links — pre-fills SIREN via `SetupProfile.LookupSiren` and returns welcome with company name. `handleCreateInvoice` detects user has no SIREN and returns BROUILLON message + SIREN request instead of the usual "créée ✓" message. `handleUpdateProfile` with SIREN: builds profile confirmation text with auto-filled name/address/activity, then calls `finalizeDraftInvoices` to regenerate draft PDFs without BROUILLON watermark. `handleSearchSiren` calls `SetupProfile.SearchSiren` and formats numbered matches with SIREN numbers visible for Claude to resolve selection. `PromptBuilder.SYSTEM_PROMPT` extended with onboarding guidance (search_siren for unknown SIREN, progressive payment terms → IBAN → email after SIREN confirmation). `buildUserContext` adds `has_iban` and `has_email` flags. `saveConversation` extracted as helper, used by both `/start` handler and main flow. 3 golden test cases added for `search_siren`. `ActionParserTest` updated to 18 tools. 6 new unit tests covering: `/start` welcome, `/start` deep link SIREN pre-fill, create invoice without SIREN (BROUILLON prompt), create invoice with SIREN (normal response), SIREN lookup finalizes drafts + profile confirm, search_siren routing with matches.
 
-### 11.3 Confirmation Flow
-- **Layer:** application
-- **Spec:** mvp-spec S2.3
-- **What:** Implement confirmation flow for invoice creation. When `confirm_before_create` is true (default), show invoice summary and wait for OK/correction. When false, create immediately. Handle corrections during confirmation ("non, c'est 900 euros").
-- **Acceptance criteria:**
-  - [ ] Default: show confirmation with invoice details before creating
-  - [ ] "OK" / "oui" / "confirme" triggers creation
-  - [ ] Corrections during confirmation update the pending invoice
-  - [ ] "Annule" cancels without creating
-  - [ ] Setting `confirm_before_create=false` skips confirmation
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 11.3** (Confirmation Flow) — Done. In-memory `pendingConfirmationMap` in `MessageRouter`. When user has SIREN and `confirmBeforeCreate=true`, `handleCreateInvoice` stores `PendingConfirmation` and returns a summary ("Je crée cette facture ? → Client … → Total … Confirme avec OK ou corrige-moi ✏️"). `handle()` intercepts next message before LLM: standalone confirm tokens (ok/oui/confirme/…) execute the stored command; standalone cancel tokens (non/annule/…) discard it; any other text falls through to LLM (correction path — LLM returns new `create_invoice`, replacing the pending state). When SIREN is absent or `confirmBeforeCreate=false`, invoice created immediately. 5 new unit tests: shows confirmation with SIREN, creates immediately without confirmation flag, ok confirms, annule cancels, correction replaces pending summary.
 
 ### 11.4 App.kt — Full Wiring
 - **Layer:** all
