@@ -73,17 +73,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 10.2** (Tool Definitions and Action Types) — Done. `ToolDefinitions` object in `infrastructure/llm/` with all 17 `LlmToolDefinition` instances (JSON schemas). `ParsedAction` sealed class with 17 subtypes and `ParsedLineItem` data class in `ActionTypes.kt`. `ActionParser` object parses `LlmResponse.ToolUse` input JSON to the correct `ParsedAction` subtype using kotlinx.serialization.json. Amounts in euros (BigDecimal) at parsing layer; use cases convert to Cents. 32 unit tests covering all 17 tool parsers, optional/required fields, ToolDefinitions count/names/JSON validity.
 
-### 10.3 System Prompt and Conversation Management
-- **Layer:** infrastructure
-- **Spec:** tech-spec S4, mvp-spec S9
-- **What:** Craft the system prompt for Claude: Mona's personality (French, conversational, brief), user context injection (name, SIREN status, onboarding state), tool usage instructions. Implement conversation context builder that assembles system prompt + user context + last 3 messages for each request.
-- **Acceptance criteria:**
-  - [ ] System prompt defines Mona's persona (French, tutoyante, brief, redirects to invoicing)
-  - [ ] User context injected as structured JSON (name, has_siren, onboarding_step)
-  - [ ] Last 3 conversation messages included in request
-  - [ ] Total prompt stays under ~800 tokens (system + context)
-  - [ ] Unit test: context builder produces expected message structure
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 10.3** (System Prompt and Conversation Management) — Done. `PromptBuilder` object in `infrastructure/llm/`. `SYSTEM_PROMPT` constant (~300 tokens, French, tutoyante, brief, unknown-tool fallback, context-resolution from history). `buildUserContext(user)` produces `{"user_context": {"name"?, "has_siren", "onboarding_step"}}` JSON (new_user / awaiting_siren / complete). `buildContext(user, recentMessages)` assembles `ConversationContext(systemPrompt, userContextJson, messages.takeLast(3))`. 13 unit tests: system prompt content, all 3 onboarding steps, has_siren true/false, name present/absent, message trimming to 3, order preserved, token budget.
 
 ### 10.4 Golden Test Suite — Parsing
 - **Layer:** test
