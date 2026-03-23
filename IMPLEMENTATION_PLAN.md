@@ -87,19 +87,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 11.3** (Confirmation Flow) — Done. In-memory `pendingConfirmationMap` in `MessageRouter`. When user has SIREN and `confirmBeforeCreate=true`, `handleCreateInvoice` stores `PendingConfirmation` and returns a summary ("Je crée cette facture ? → Client … → Total … Confirme avec OK ou corrige-moi ✏️"). `handle()` intercepts next message before LLM: standalone confirm tokens (ok/oui/confirme/…) execute the stored command; standalone cancel tokens (non/annule/…) discard it; any other text falls through to LLM (correction path — LLM returns new `create_invoice`, replacing the pending state). When SIREN is absent or `confirmBeforeCreate=false`, invoice created immediately. 5 new unit tests: shows confirmation with SIREN, creates immediately without confirmation flag, ok confirms, annule cancels, correction replaces pending summary.
 
-### 11.4 App.kt — Full Wiring
-- **Layer:** all
-- **Spec:** tech-spec S2.9 (event handlers at startup)
-- **What:** Wire everything together in `App.kt`: database initialization, repository creation, adapter creation (Telegram, Claude, PDF, Email, SIRENE, Crypto), use case construction, event handler registration, message router setup, bot startup. Load configuration from environment variables.
-- **Acceptance criteria:**
-  - [ ] All dependencies wired manually (no DI container)
-  - [ ] Database initialized with schema creation
-  - [ ] Event handlers registered: InvoicePaid -> threshold check, InvoiceOverdue -> user notification
-  - [ ] Persistent menu set up on bot start
-  - [ ] Health check endpoint at `/health`
-  - [ ] Environment variables: `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `IBAN_ENCRYPTION_KEY`, `SIRENE_API_KEY`, `DATABASE_PATH`
-  - [ ] Graceful shutdown (close database, stop bot)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 11.4** (App.kt — Full Wiring) — Done. All dependencies wired manually in `App.kt`. Database initialized via `DatabaseFactory.init(dbPath)`. All repositories, adapters (Telegram, Claude, PDF, Resend, SIRENE, Crypto), and use cases constructed. EventDispatcher registered with two handlers: `InvoicePaid` → year-to-date revenue query + `UrssafThresholds.checkTvaThreshold()` + send TVA alert at 80%/95%; `InvoiceOverdue` → notify user with invoice number and due date. Persistent menu (Nouvelle facture / Mes impayés / Mon CA) lazily set per-user on first message (tracked in-process via `ConcurrentHashMap`). Health check HTTP server at `/health` (port 8080, JDK `com.sun.net.httpserver`). Environment variables: `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `IBAN_ENCRYPTION_KEY`, `SIRENE_API_KEY`, `DATABASE_PATH`. Graceful shutdown via `Runtime.addShutdownHook` (stops health server, cancels bot job and coroutine scope). Main thread blocks on bot job via `runBlocking { botJob.join() }`.
 
 ---
 
