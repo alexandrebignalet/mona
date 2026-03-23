@@ -100,6 +100,8 @@ private class StubInvoiceRepoRevenue(
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 class GetRevenueTest {

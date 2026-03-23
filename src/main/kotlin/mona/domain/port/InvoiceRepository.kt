@@ -57,4 +57,6 @@ interface InvoiceRepository {
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice>
+
+    suspend fun findByNumber(number: InvoiceNumber): List<Invoice>
 }

@@ -122,6 +122,8 @@ private class StubInvoiceRepoLC(vararg invoices: Invoice) : InvoiceRepository {
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 class ListClientsTest {

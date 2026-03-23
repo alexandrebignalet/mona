@@ -126,6 +126,8 @@ private class StubInvoiceRepository(vararg invoices: Invoice) : InvoiceRepositor
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
 }
 
 private class StubPdfPort : PdfPort {

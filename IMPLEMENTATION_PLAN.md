@@ -109,17 +109,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 13.1** (Dockerfile and Fly.io Configuration) — Done. `Dockerfile` (multi-stage: eclipse-temurin:21-jdk-alpine builder + eclipse-temurin:21-jre-alpine runtime, Litestream v0.3.13 binary installed from GitHub release). `fly.toml` (app=mona, region=cdg, persistent volume `mona_data` → `/data`, `[http_service]` with `/health` check every 15s, `auto_stop_machines=false`, 1 shared CPU / 512 MB). `litestream.yml` (S3-compatible replica with env-var interpolation for bucket/endpoint/keys, sync-interval=1s for RPO < 1 min). `start.sh` (restores from Litestream if DB absent, then `litestream replicate -exec "java -jar /app/mona.jar"`). Env vars documented: `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `IBAN_ENCRYPTION_KEY`, `SIRENE_API_KEY`, `DATABASE_PATH` (non-secret, set in fly.toml), `LITESTREAM_BUCKET`, `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `LITESTREAM_ENDPOINT`, `LITESTREAM_REGION` (secrets, set via `fly secrets set`).
 
-### 13.2 Email Bounce Webhook
-- **Layer:** infrastructure
-- **Spec:** mvp-spec S4, tech-spec S10
-- **What:** Add a minimal HTTP endpoint to receive Resend webhook callbacks for bounce/delivery events. On bounce, notify user via Telegram that email failed. Invoice stays Draft (not Sent) on bounce.
-- **Acceptance criteria:**
-  - [ ] HTTP endpoint receives Resend webhook POST
-  - [ ] Parses bounce event, identifies invoice
-  - [ ] Notifies user: "L'email a echoue" with option to provide new address
-  - [ ] Invoice remains in Draft status on bounce
-  - [ ] Endpoint secured (webhook signing verification)
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 13.2** (Email Bounce Webhook) — Done. `Invoice.revertToDraft()` added (SENT→DRAFT transition). `InvoiceRepository.findByNumber(InvoiceNumber): List<Invoice>` added to port and `ExposedInvoiceRepository`. `HandleBouncedEmail` use case in `application/invoicing/`: finds invoices by number, reverts each Sent invoice to Draft, notifies user via MessagingPort. `ResendWebhookHandler` in `infrastructure/email/`: verifies Svix HMAC-SHA256 signature (`whsec_` prefix), parses `email.bounced` event JSON, extracts invoice number from subject via regex, dispatches to `HandleBouncedEmail` via coroutine scope. `/webhook/resend` POST endpoint wired into existing HttpServer in App.kt; `RESEND_WEBHOOK_SECRET` env var (empty = skip signature check). 4 domain tests (revertToDraft: Sent→Draft, preserves data, fails on Draft/Paid). 6 use case tests (happy path, message content, invoice not found, non-Sent skip, multi-user, data preserved). 7 webhook handler tests (valid bounce, invalid sig→400, non-bounce event, malformed JSON, missing number, empty secret skip, correct extraction).
 
 ---
 

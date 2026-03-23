@@ -116,6 +116,8 @@ private class StubInvoiceRepoUnpaid(
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 private class StubClientRepoUnpaid(vararg clients: Client) : ClientRepository {

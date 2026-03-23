@@ -108,6 +108,8 @@ private class OverdueInvoiceRepo(
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 class OverdueTransitionJobTest {

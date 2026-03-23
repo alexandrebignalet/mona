@@ -238,6 +238,16 @@ class ExposedInvoiceRepository : InvoiceRepository {
                 .filter { it.amountHt == amountHt }
         }
 
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> =
+        newSuspendedTransaction {
+            InvoicesTable.selectAll()
+                .where { InvoicesTable.invoiceNumber eq number.value }
+                .map { row ->
+                    val id = row[InvoicesTable.id]
+                    row.toInvoice(loadLineItems(id), loadCreditNote(id))
+                }
+        }
+
     private fun insertLineItems(
         invoiceId: String,
         lineItems: List<LineItem>,

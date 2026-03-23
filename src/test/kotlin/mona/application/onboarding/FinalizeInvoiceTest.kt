@@ -156,6 +156,8 @@ private class FiInvoiceRepo(private val invoice: Invoice?) : InvoiceRepository {
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 private class CapturingPdfPort : PdfPort {

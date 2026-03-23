@@ -62,6 +62,12 @@ data class Invoice(
             else -> invalidTransition("Paid")
         }
 
+    /** SENT -> DRAFT (on email bounce — delivery failed) */
+    fun revertToDraft(): DomainResult<Invoice> {
+        if (status !is InvoiceStatus.Sent) return invalidTransition("Draft (bounce)")
+        return DomainResult.Ok(copy(status = InvoiceStatus.Draft))
+    }
+
     /** SENT -> OVERDUE */
     fun markOverdue(now: Instant): DomainResult<TransitionResult> {
         if (status !is InvoiceStatus.Sent) return invalidTransition("Overdue")

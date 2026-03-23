@@ -131,6 +131,8 @@ private class StubInvoiceRepoCancelInvoice(vararg invoices: Invoice) : InvoiceRe
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 private class StubPdfPortCancelInvoice : PdfPort {

@@ -255,4 +255,38 @@ class InvoiceTest {
         val result = cancelled.cancel(null, now)
         assertIs<DomainResult.Err>(result)
     }
+
+    // --- revertToDraft tests ---
+    @Test
+    fun `revertToDraft on Sent returns Draft invoice`() {
+        val sent = (createDraft().send(now) as DomainResult.Ok).value.invoice
+        val result = sent.revertToDraft()
+        assertIs<DomainResult.Ok<Invoice>>(result)
+        assertIs<InvoiceStatus.Draft>(result.value.status)
+    }
+
+    @Test
+    fun `revertToDraft preserves invoice data`() {
+        val sent = (createDraft().send(now) as DomainResult.Ok).value.invoice
+        val reverted = (sent.revertToDraft() as DomainResult.Ok).value
+        assertEquals(sent.id, reverted.id)
+        assertEquals(sent.number, reverted.number)
+        assertEquals(sent.amountHt, reverted.amountHt)
+        assertEquals(sent.clientId, reverted.clientId)
+    }
+
+    @Test
+    fun `revertToDraft on Draft fails`() {
+        val result = createDraft().revertToDraft()
+        assertIs<DomainResult.Err>(result)
+        assertIs<DomainError.InvalidTransition>(result.error)
+    }
+
+    @Test
+    fun `revertToDraft on Paid fails`() {
+        val paid = (createDraft().markPaid(issueDate, PaymentMethod.VIREMENT, now) as DomainResult.Ok).value.invoice
+        val result = paid.revertToDraft()
+        assertIs<DomainResult.Err>(result)
+        assertIs<DomainError.InvalidTransition>(result.error)
+    }
 }

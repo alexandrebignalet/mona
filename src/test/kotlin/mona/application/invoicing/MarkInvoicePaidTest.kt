@@ -86,6 +86,8 @@ private class StubInvoiceRepositoryPaid(vararg invoices: Invoice) : InvoiceRepos
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 private fun makeInvoice(status: InvoiceStatus = InvoiceStatus.Draft): Invoice =

@@ -108,6 +108,8 @@ private class StubInvoiceRepoCsv(vararg invoices: Invoice) : InvoiceRepository {
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = emptyList()
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
 }
 
 private class StubClientRepoCsv(vararg clients: Client) : ClientRepository {

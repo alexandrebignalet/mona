@@ -18,6 +18,7 @@ import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CorrectInvoice
 import mona.application.invoicing.CreateInvoice
 import mona.application.invoicing.DeleteDraft
+import mona.application.invoicing.HandleBouncedEmail
 import mona.application.invoicing.MarkInvoicePaid
 import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.UpdateDraft
@@ -46,6 +47,7 @@ import mona.infrastructure.db.ExposedOnboardingReminderRepository
 import mona.infrastructure.db.ExposedUrssafReminderRepository
 import mona.infrastructure.db.ExposedUserRepository
 import mona.infrastructure.email.ResendEmailAdapter
+import mona.infrastructure.email.ResendWebhookHandler
 import mona.infrastructure.llm.ClaudeApiClient
 import mona.infrastructure.pdf.PdfGenerator
 import mona.infrastructure.sirene.SireneApiClient
@@ -255,12 +257,29 @@ fun main() {
     // Track users whose persistent menu has been initialized this session
     val menuInitialized = ConcurrentHashMap.newKeySet<String>()
 
-    // Health check endpoint
+    // Email bounce handling
+    val handleBouncedEmail = HandleBouncedEmail(invoiceRepository, telegramAdapter)
+    val webhookHandler =
+        ResendWebhookHandler(
+            signingSecret = System.getenv("RESEND_WEBHOOK_SECRET") ?: "",
+            handleBouncedEmail = handleBouncedEmail,
+            scope = scope,
+        )
+
+    // Health check + webhook endpoints
     val healthServer = HttpServer.create(InetSocketAddress(8080), 0)
     healthServer.createContext("/health") { exchange ->
         val response = "OK"
         exchange.sendResponseHeaders(200, response.length.toLong())
         exchange.responseBody.use { it.write(response.toByteArray()) }
+    }
+    healthServer.createContext("/webhook/resend") { exchange ->
+        if (exchange.requestMethod == "POST") {
+            webhookHandler.handle(exchange)
+        } else {
+            exchange.sendResponseHeaders(405, 0)
+            exchange.responseBody.close()
+        }
     }
     healthServer.start()
 

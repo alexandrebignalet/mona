@@ -122,6 +122,8 @@ private class InMemoryInvoiceRepository : InvoiceRepository {
         amountHt: Cents,
         since: LocalDate,
     ): List<Invoice> = store.values.filter { it.clientId == clientId && it.amountHt == amountHt && !it.issueDate.isBefore(since) }
+
+    override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
 }
 
 private class FakePdfPort : PdfPort {
