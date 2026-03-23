@@ -109,6 +109,7 @@ class MessageRouter(
     private val finalizeInvoice: FinalizeInvoice,
     private val listClients: ListClients,
     private val getClientHistory: GetClientHistory,
+    private val configureSetting: mona.application.settings.ConfigureSetting,
 ) {
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
@@ -757,22 +758,16 @@ class MessageRouter(
         user: User,
         action: ParsedAction.ConfigureSetting,
     ): RouteResult {
-        val updated =
-            when (action.setting) {
-                "confirm_before_create" -> {
-                    val on = action.value.lowercase() in listOf("true", "oui", "1", "yes")
-                    user.copy(confirmBeforeCreate = on)
-                }
-                "default_payment_delay_days" -> {
-                    val days =
-                        action.value.toIntOrNull()?.coerceIn(1, 60)
-                            ?: return Pair("Délai invalide — utilise un nombre entre 1 et 60.", emptyList())
-                    user.copy(defaultPaymentDelayDays = PaymentDelayDays(days))
-                }
-                else -> return Pair("Je ne connais pas ce paramètre.", emptyList())
-            }
-        userRepository.save(updated)
-        return Pair("Paramètre mis à jour ✓", emptyList())
+        val command =
+            mona.application.settings.ConfigureSettingCommand(
+                userId = user.id,
+                setting = action.setting,
+                value = action.value,
+            )
+        return when (val result = configureSetting.execute(command)) {
+            is DomainResult.Ok -> Pair("Paramètre mis à jour ✓", emptyList())
+            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+        }
     }
 
     private suspend fun handleListClients(user: User): RouteResult {
@@ -929,5 +924,7 @@ class MessageRouter(
             is DomainError.InvoiceNotCancellable ->
                 "Cette facture ne peut pas être annulée directement — utilise la correction."
             is DomainError.CreditNoteAmountMismatch -> "Problème avec le montant de l'avoir."
+            is DomainError.UnknownSetting -> "Je ne connais pas ce paramètre."
+            is DomainError.InvalidSettingValue -> "Valeur invalide — utilise un nombre entre 1 et 60 pour le délai de paiement."
         }
 }

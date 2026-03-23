@@ -30,6 +30,7 @@ import mona.application.payment.PaymentCheckInJob
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
 import mona.application.revenue.GetUnpaidInvoices
+import mona.application.settings.ConfigureSetting
 import mona.application.urssaf.UrssafReminderJob
 import mona.domain.model.Cents
 import mona.domain.model.DeclarationPeriod
@@ -118,6 +119,7 @@ fun main() {
     val getClientHistory = GetClientHistory(clientRepository, invoiceRepository)
     val setupProfile = SetupProfile(userRepository, sirenePort, cryptoAdapter)
     val finalizeInvoice = FinalizeInvoice(userRepository, clientRepository, invoiceRepository, pdfPort)
+    val configureSetting = ConfigureSetting(userRepository)
 
     // Register event handlers
     eventDispatcher.register { event ->
@@ -252,6 +254,7 @@ fun main() {
             finalizeInvoice = finalizeInvoice,
             listClients = listClients,
             getClientHistory = getClientHistory,
+            configureSetting = configureSetting,
         )
 
     // Track users whose persistent menu has been initialized this session

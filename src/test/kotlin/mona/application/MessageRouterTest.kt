@@ -16,6 +16,7 @@ import mona.application.onboarding.SetupProfile
 import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
 import mona.application.revenue.GetUnpaidInvoices
+import mona.application.settings.ConfigureSetting
 import mona.domain.model.ActivityType
 import mona.domain.model.Cents
 import mona.domain.model.Client
@@ -326,6 +327,7 @@ private fun makeRouter(
             finalizeInvoice = FinalizeInvoice(userRepo, clientRepo, invoiceRepo, pdf),
             listClients = ListClients(clientRepo, invoiceRepo),
             getClientHistory = GetClientHistory(clientRepo, invoiceRepo),
+            configureSetting = ConfigureSetting(userRepo),
         )
     return Triple(router, messagingPort, conversationRepo)
 }

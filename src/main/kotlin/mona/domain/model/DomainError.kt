@@ -42,4 +42,10 @@ sealed class DomainError(val message: String) {
 
     class LlmUnavailable(val reason: String) :
         DomainError("LLM unavailable: $reason")
+
+    class UnknownSetting(val name: String) :
+        DomainError("Unknown setting: $name")
+
+    class InvalidSettingValue(val setting: String, val value: String) :
+        DomainError("Invalid value '$value' for setting '$setting'")
 }

@@ -115,16 +115,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 14: Polish and Hardening
 
-### 14.1 User Settings Management
-- **Layer:** application
-- **Spec:** mvp-spec S11
-- **What:** Implement `ConfigureSetting` use case for `confirm_before_create` and `default_payment_delay_days`. Integrate with message router so users can change settings via chat.
-- **Acceptance criteria:**
-  - [ ] "Desactive la confirmation" sets `confirm_before_create = false`
-  - [ ] "Delai de paiement 15 jours" updates `default_payment_delay_days`
-  - [ ] Changes persisted and take effect immediately
-  - [ ] Confirmation message sent to user
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 14.1** (User Settings Management) — Done. `ConfigureSetting` use case in `application/settings/`. `DomainError.UnknownSetting` and `DomainError.InvalidSettingValue` added. Handles `confirm_before_create` (any of true/oui/1/yes → true, else false) and `default_payment_delay_days` (int, clamped 1–60). `MessageRouter.handleConfigureSetting` delegates to use case; `formatDomainError` extended for both new errors. 8 unit tests: confirm off, confirm on via oui, delay update, clamp to 60, invalid non-integer, unknown setting, user not found, persists to repo.
 
 ### 14.2 VAT Threshold Alerts
 - **Layer:** application
