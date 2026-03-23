@@ -1,0 +1,35 @@
+app = "mona"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Non-secret env vars. Secrets (tokens, keys) are set via `fly secrets set`.
+[env]
+  DATABASE_PATH = "/data/mona.db"
+
+# Persistent volume for SQLite + PDF storage
+[[mounts]]
+  source = "mona_data"
+  destination = "/data"
+
+# HTTP service — used only for the /health check endpoint.
+# Not exposed publicly (no public ports), but Fly.io uses it for auto-restart.
+[http_service]
+  internal_port = 8080
+  force_https = false
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

@@ -107,19 +107,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 ## Phase 13: Deployment
 
-### 13.1 Dockerfile and Fly.io Configuration
-- **Layer:** all
-- **Spec:** tech-spec S8
-- **What:** Create `Dockerfile` with JVM 21 (Eclipse Temurin) base, Litestream binary. Create `fly.toml` with persistent volume, health check, environment variable configuration. Create Litestream config for S3 backup. Create startup script that starts Litestream replication then launches the app.
-- **Acceptance criteria:**
-  - [ ] Dockerfile builds fat JAR and creates runnable image
-  - [ ] Image includes Litestream binary
-  - [ ] `fly.toml` configures persistent volume for SQLite
-  - [ ] Health check configured at `/health`
-  - [ ] Litestream config points to S3-compatible storage
-  - [ ] Startup script: restore from Litestream (if first deploy) -> start replication -> start app
-  - [ ] Environment variables documented
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 13.1** (Dockerfile and Fly.io Configuration) — Done. `Dockerfile` (multi-stage: eclipse-temurin:21-jdk-alpine builder + eclipse-temurin:21-jre-alpine runtime, Litestream v0.3.13 binary installed from GitHub release). `fly.toml` (app=mona, region=cdg, persistent volume `mona_data` → `/data`, `[http_service]` with `/health` check every 15s, `auto_stop_machines=false`, 1 shared CPU / 512 MB). `litestream.yml` (S3-compatible replica with env-var interpolation for bucket/endpoint/keys, sync-interval=1s for RPO < 1 min). `start.sh` (restores from Litestream if DB absent, then `litestream replicate -exec "java -jar /app/mona.jar"`). Env vars documented: `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `IBAN_ENCRYPTION_KEY`, `SIRENE_API_KEY`, `DATABASE_PATH` (non-secret, set in fly.toml), `LITESTREAM_BUCKET`, `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `LITESTREAM_ENDPOINT`, `LITESTREAM_REGION` (secrets, set via `fly secrets set`).
 
 ### 13.2 Email Bounce Webhook
 - **Layer:** infrastructure
