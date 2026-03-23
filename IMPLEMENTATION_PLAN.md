@@ -101,19 +101,7 @@ The strategy is: scaffolding -> domain (pure, testable) -> infrastructure adapte
 
 - **Phase 12.3** (URSSAF Reminder Jobs) — Done. `UrssafReminderJob` in `application/urssaf/`. `UrssafReminderRecord` domain model and `UrssafReminderRepository` port added. `UrssafRemindersTable` added (composite PK: user_id + period_key). `ExposedUrssafReminderRepository` implemented. `UserRepository.findAllWithPeriodicity()` added. Job: for each user with periodicity, computes deadline via `UrssafThresholds.nextDeclarationDeadline(periodicity, today.minusMonths(1))` (offset ensures approaching deadline is found), checks daysUntil == 7 or 1, loads revenue via `findPaidInPeriod` + `findCreditNotesInPeriod` (cash basis), sends formatted French message with URSSAF portal link. D-1 skipped if user sent any conversation message after D-7. Both D-7 and D-1 are idempotent (sent-at timestamps stored). Scheduled daily at 10:00 Paris time in App.kt. 8 unit tests: no users, D-7 fires with revenue, D-1 fires when not acknowledged, D-1 skipped when acknowledged, D-7 idempotent, D-1 idempotent, mixed-activity breakdown, cash-basis period correctness.
 
-### 12.4 Onboarding Recovery Job
-- **Layer:** application
-- **Spec:** mvp-spec S1
-- **What:** Implement daily job for onboarding drop-off recovery. Query users with draft invoices and no SIREN. Send Reminder 1 at 24h, Reminder 2 at 72h (with name+city search offer). Max 2 reminders. Skip Reminder 2 if user responded to Reminder 1.
-- **Acceptance criteria:**
-  - [ ] Finds users with drafts, no SIREN, created 24h+ ago
-  - [ ] Reminder 1 at 24h: basic nudge about pending draft
-  - [ ] Reminder 2 at 72h: proactive name+city search offer
-  - [ ] Max 2 reminders per drop-off (no nagging)
-  - [ ] Reminder 2 skipped if user responded to Reminder 1
-  - [ ] Idempotent
-  - [ ] Unit test
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+- **Phase 12.4** (Onboarding Recovery Job) — Done. `OnboardingRecoveryJob` in `application/onboarding/`. `OnboardingReminderRecord` domain model and `OnboardingReminderRepository` port added. `OnboardingRemindersTable` added (PK: user_id). `ExposedOnboardingReminderRepository` implemented. `UserRepository.findAllWithoutSiren()` added (port + implementation). Job: for each user without SIREN who has Draft invoices, checks oldest draft age (Paris timezone): at 1+ days sends Reminder 1 (SIREN nudge); at 3+ days, if R1 was sent and user hasn't replied to it, sends Reminder 2 (proactive name+city search offer). Both reminders are idempotent (sent-at timestamps stored). Scheduled daily at 11:00 Paris time in App.kt. 8 unit tests: no drafts, has SIREN skipped, R1 sent at 1+ days, R2 sent when unacknowledged, R2 skipped when acknowledged, R1 idempotent, R2 idempotent, multiple users independently processed.
 
 ---
 

@@ -97,3 +97,11 @@ object UrssafRemindersTable : Table("urssaf_reminders") {
 
     override val primaryKey = PrimaryKey(userId, periodKey)
 }
+
+object OnboardingRemindersTable : Table("onboarding_reminders") {
+    val userId = varchar("user_id", 36).references(UsersTable.id)
+    val r1SentAt = timestamp("r1_sent_at").nullable()
+    val r2SentAt = timestamp("r2_sent_at").nullable()
+
+    override val primaryKey = PrimaryKey(userId)
+}

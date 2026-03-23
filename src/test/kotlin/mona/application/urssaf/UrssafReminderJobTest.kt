@@ -76,6 +76,8 @@ private class StubUserRepository(
     override suspend fun save(user: User) {}
 
     override suspend fun findAllWithPeriodicity(): List<User> = users.filter { it.declarationPeriodicity != null }
+
+    override suspend fun findAllWithoutSiren(): List<User> = users.filter { it.siren == null }
 }
 
 private class StubInvoiceRepository(

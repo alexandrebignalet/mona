@@ -28,6 +28,7 @@ object DatabaseFactory {
                 CreditNotesTable,
                 ConversationMessagesTable,
                 UrssafRemindersTable,
+                OnboardingRemindersTable,
             )
         }
         return db

@@ -22,6 +22,7 @@ import mona.application.invoicing.MarkInvoicePaid
 import mona.application.invoicing.SendInvoice
 import mona.application.invoicing.UpdateDraft
 import mona.application.onboarding.FinalizeInvoice
+import mona.application.onboarding.OnboardingRecoveryJob
 import mona.application.onboarding.SetupProfile
 import mona.application.payment.OverdueTransitionJob
 import mona.application.payment.PaymentCheckInJob
@@ -41,6 +42,7 @@ import mona.infrastructure.db.DatabaseFactory
 import mona.infrastructure.db.ExposedClientRepository
 import mona.infrastructure.db.ExposedConversationRepository
 import mona.infrastructure.db.ExposedInvoiceRepository
+import mona.infrastructure.db.ExposedOnboardingReminderRepository
 import mona.infrastructure.db.ExposedUrssafReminderRepository
 import mona.infrastructure.db.ExposedUserRepository
 import mona.infrastructure.email.ResendEmailAdapter
@@ -81,6 +83,7 @@ fun main() {
     val invoiceRepository = ExposedInvoiceRepository()
     val conversationRepository = ExposedConversationRepository()
     val urssafReminderRepository = ExposedUrssafReminderRepository()
+    val onboardingReminderRepository = ExposedOnboardingReminderRepository()
 
     // Infrastructure adapters
     val cryptoAdapter = IbanCryptoAdapter(IbanCrypto.loadKeyFromEnv())
@@ -196,6 +199,27 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 urssafReminderJob.execute(LocalDate.now(paris))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    val onboardingRecoveryJob =
+        OnboardingRecoveryJob(
+            userRepository = userRepository,
+            invoiceRepository = invoiceRepository,
+            reminderRepository = onboardingReminderRepository,
+            conversationRepository = conversationRepository,
+            messagingPort = telegramAdapter,
+        )
+    scope.launch {
+        val paris = ZoneId.of("Europe/Paris")
+        while (isActive) {
+            val now = ZonedDateTime.now(paris)
+            val nextRun = now.toLocalDate().plusDays(1).atTime(LocalTime.of(11, 0)).atZone(paris)
+            delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
+            try {
+                onboardingRecoveryJob.execute(LocalDate.now(paris))
             } catch (_: Exception) {
             }
         }

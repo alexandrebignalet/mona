@@ -48,6 +48,8 @@ private class InMemoryUserRepository(vararg users: User) : UserRepository {
     }
 
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
+
+    override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
 }
 
 private class InMemoryClientRepository : ClientRepository {

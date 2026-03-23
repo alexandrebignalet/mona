@@ -101,6 +101,8 @@ private class UdUserRepo(vararg users: User) : UserRepository {
     override suspend fun save(user: User) {}
 
     override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
+
+    override suspend fun findAllWithoutSiren(): List<User> = emptyList()
 }
 
 private class UdClientRepo(vararg clients: Client) : ClientRepository {

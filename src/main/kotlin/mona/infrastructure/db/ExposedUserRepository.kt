@@ -41,6 +41,13 @@ class ExposedUserRepository : UserRepository {
                 .filter { it.declarationPeriodicity != null }
         }
 
+    override suspend fun findAllWithoutSiren(): List<User> =
+        newSuspendedTransaction {
+            UsersTable.selectAll()
+                .map { it.toUser() }
+                .filter { it.siren == null }
+        }
+
     override suspend fun save(user: User) {
         newSuspendedTransaction {
             val existing =
