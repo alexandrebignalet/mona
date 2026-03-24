@@ -12,7 +12,7 @@ Three workflows, each with a distinct trigger and purpose:
 |----------|------|---------|---------|
 | **CI** | `ci.yml` | Push to `main`, all PRs | Build, test, lint — gate merges |
 | **Golden Tests** | `golden-tests.yml` | Manual (`workflow_dispatch`) | Run LLM golden tests against real Claude API |
-| **Deploy** | `deploy.yml` | Manual (`workflow_dispatch`) | Build & deploy to Fly.io production |
+| **Deploy** | `deploy.yml` | Auto on CI success (`main`), manual fallback | Build & deploy to Fly.io production |
 
 ---
 
@@ -102,6 +102,10 @@ Golden tests hit the real Claude API. Each run costs money and is non-determinis
 
 ```yaml
 on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
     inputs:
       confirm:
@@ -109,13 +113,9 @@ on:
         required: true
 ```
 
-### Why Manual Only
+### Trigger Logic
 
-Mona runs on a single Fly.io instance with a persistent SQLite volume. Automated deploys on every push are risky — a broken build could take down the bot with no automatic rollback. Manual trigger gives the operator explicit control.
-
-### Guard
-
-The workflow aborts immediately if `inputs.confirm != 'deploy'`. This prevents accidental dispatch.
+The workflow runs automatically when the CI workflow completes successfully on `main` (`workflow_run.conclusion == 'success'`). The `workflow_dispatch` fallback allows manual deploys; the confirmation guard (`inputs.confirm == 'deploy'`) prevents accidental dispatch in that path.
 
 ### Environment
 

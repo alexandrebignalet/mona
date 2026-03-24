@@ -640,7 +640,7 @@ package mona.domain.port
 
 import mona.domain.model.Client
 import mona.domain.model.CreditNote
-import mona.domain.model.Invoice
+import mona.domain.model.DomainResult
 
 ==> src/main/kotlin/mona/domain/port/OnboardingReminderRepository.kt <==
 package mona.domain.port
