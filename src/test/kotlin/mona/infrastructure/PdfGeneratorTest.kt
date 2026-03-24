@@ -88,7 +88,8 @@ class PdfGeneratorTest {
 
     @Test
     fun `generateInvoice returns non-empty valid PDF`() {
-        val pdfBytes = PdfGenerator.generateInvoice(testInvoice(), testUser(), testClient(), null)
+        val result = PdfGenerator.generateInvoice(testInvoice(), testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -101,7 +102,8 @@ class PdfGeneratorTest {
         val invoice = testInvoice()
         assertTrue(invoice.status is InvoiceStatus.Draft)
 
-        val pdfBytes = PdfGenerator.generateInvoice(invoice, testUser(), testClient(), null)
+        val result = PdfGenerator.generateInvoice(invoice, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -111,13 +113,14 @@ class PdfGeneratorTest {
 
     @Test
     fun `invoice with IBAN section produces valid PDF`() {
-        val pdfBytes =
+        val result =
             PdfGenerator.generateInvoice(
                 testInvoice(),
                 testUser(),
                 testClient(),
                 "FR7630006000011234567890189",
             )
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -129,7 +132,8 @@ class PdfGeneratorTest {
     fun `invoice without user SIREN produces valid PDF`() {
         val userWithoutSiren = testUser().copy(siren = null, address = null)
 
-        val pdfBytes = PdfGenerator.generateInvoice(testInvoice(), userWithoutSiren, testClient(), null)
+        val result = PdfGenerator.generateInvoice(testInvoice(), userWithoutSiren, testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -145,7 +149,8 @@ class PdfGeneratorTest {
                 companyName = "Acme SAS",
             )
 
-        val pdfBytes = PdfGenerator.generateInvoice(testInvoice(), testUser(), clientWithAddress, null)
+        val result = PdfGenerator.generateInvoice(testInvoice(), testUser(), clientWithAddress, null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -169,7 +174,8 @@ class PdfGeneratorTest {
                 is DomainResult.Err -> error("markPaid failed: ${result.error}")
             }
 
-        val pdfBytes = PdfGenerator.generateInvoice(paidInvoice, testUser(), testClient(), null)
+        val result = PdfGenerator.generateInvoice(paidInvoice, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -204,7 +210,8 @@ class PdfGeneratorTest {
                 is DomainResult.Err -> error("Invoice creation failed: ${result.error}")
             }
 
-        val pdfBytes = PdfGenerator.generateInvoice(invoice, testUser(), testClient(), null)
+        val result = PdfGenerator.generateInvoice(invoice, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -229,8 +236,9 @@ class PdfGeneratorTest {
 
     @Test
     fun `generateCreditNote returns non-empty valid PDF`() {
-        val pdfBytes =
+        val result =
             PdfGenerator.generateCreditNote(testCreditNote(), originalInvoiceNumber, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -241,8 +249,9 @@ class PdfGeneratorTest {
     @Test
     fun `generateCreditNote with reason produces valid PDF`() {
         val creditNote = testCreditNote(reason = "Erreur de montant - correction a 900 EUR")
-        val pdfBytes =
+        val result =
             PdfGenerator.generateCreditNote(creditNote, originalInvoiceNumber, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -252,7 +261,7 @@ class PdfGeneratorTest {
 
     @Test
     fun `generateCreditNote with IBAN produces valid PDF`() {
-        val pdfBytes =
+        val result =
             PdfGenerator.generateCreditNote(
                 testCreditNote(),
                 originalInvoiceNumber,
@@ -260,6 +269,7 @@ class PdfGeneratorTest {
                 testClient(),
                 "FR7630006000011234567890189",
             )
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -270,8 +280,9 @@ class PdfGeneratorTest {
     @Test
     fun `generateCreditNote without user SIREN produces valid PDF`() {
         val userWithoutSiren = testUser().copy(siren = null, address = null)
-        val pdfBytes =
+        val result =
             PdfGenerator.generateCreditNote(testCreditNote(), originalInvoiceNumber, userWithoutSiren, testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->
@@ -282,8 +293,9 @@ class PdfGeneratorTest {
     @Test
     fun `generateCreditNote with blank reason uses default description`() {
         val creditNote = testCreditNote(reason = "")
-        val pdfBytes =
+        val result =
             PdfGenerator.generateCreditNote(creditNote, originalInvoiceNumber, testUser(), testClient(), null)
+        val pdfBytes = (result as DomainResult.Ok).value
 
         assertTrue(pdfBytes.isNotEmpty())
         Loader.loadPDF(pdfBytes).use { doc ->

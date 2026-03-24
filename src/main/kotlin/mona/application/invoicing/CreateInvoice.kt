@@ -90,7 +90,11 @@ class CreateInvoice(
                 command.issueDate.minusDays(2),
             )
 
-        val pdf = pdfPort.generateInvoice(invoice, user, client, null)
+        val pdf =
+            when (val r = pdfPort.generateInvoice(invoice, user, client, null)) {
+                is DomainResult.Err -> return r
+                is DomainResult.Ok -> r.value
+            }
         invoiceRepository.save(invoice)
         eventDispatcher.dispatch(emptyList())
 

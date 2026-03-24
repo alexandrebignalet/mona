@@ -221,7 +221,7 @@ private class FakePdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = byteArrayOf(0x50, 0x44, 0x46)
+    ): DomainResult<ByteArray> = DomainResult.Ok(byteArrayOf(0x50, 0x44, 0x46))
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -229,7 +229,44 @@ private class FakePdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = byteArrayOf(0x50, 0x44, 0x46)
+    ): DomainResult<ByteArray> = DomainResult.Ok(byteArrayOf(0x50, 0x44, 0x46))
+}
+
+private class FailingPdfPort : PdfPort {
+    override fun generateInvoice(
+        invoice: Invoice,
+        user: User,
+        client: Client,
+        plainIban: String?,
+    ): DomainResult<ByteArray> = DomainResult.Err(DomainError.PdfGenerationFailed("simulated failure"))
+
+    override fun generateCreditNote(
+        creditNote: CreditNote,
+        originalInvoiceNumber: InvoiceNumber,
+        user: User,
+        client: Client,
+        plainIban: String?,
+    ): DomainResult<ByteArray> = DomainResult.Err(DomainError.PdfGenerationFailed("simulated failure"))
+}
+
+private class FailingEmailPort : mona.domain.port.EmailPort {
+    override suspend fun sendInvoice(
+        to: String,
+        subject: String,
+        body: String,
+        pdfAttachment: ByteArray,
+        filename: String,
+    ): DomainResult<Unit> = DomainResult.Err(DomainError.EmailDeliveryFailed(422, "invalid"))
+}
+
+private class FailingSirenePort : mona.domain.port.SirenePort {
+    override suspend fun lookupBySiren(siren: mona.domain.model.Siren): DomainResult<mona.domain.port.SireneResult> =
+        DomainResult.Err(DomainError.SireneLookupFailed("SIRENE API timeout"))
+
+    override suspend fun searchByNameAndCity(
+        name: String,
+        city: String,
+    ): DomainResult<List<mona.domain.port.SireneResult>> = DomainResult.Err(DomainError.SireneLookupFailed("SIRENE API timeout"))
 }
 
 private class FakeCryptoPort : CryptoPort {
@@ -303,8 +340,10 @@ private fun makeRouter(
     messagingPort: FakeMessagingPort = FakeMessagingPort(),
     cryptoPort: CryptoPort = FakeCryptoPort(),
     sirenePort: mona.domain.port.SirenePort = FakeSirenePort(),
+    pdfPort: PdfPort = FakePdfPort(),
+    emailPort: mona.domain.port.EmailPort = FakeEmailPort(),
 ): Triple<MessageRouter, FakeMessagingPort, InMemoryConversationRepository> {
-    val pdf = FakePdfPort()
+    val pdf = pdfPort
     val dispatcher = EventDispatcher()
     val router =
         MessageRouter(
@@ -316,7 +355,7 @@ private fun makeRouter(
             messagingPort = messagingPort,
             cryptoPort = cryptoPort,
             createInvoice = CreateInvoice(userRepo, clientRepo, invoiceRepo, pdf, dispatcher),
-            sendInvoice = SendInvoice(userRepo, clientRepo, invoiceRepo, pdf, FakeEmailPort(), dispatcher),
+            sendInvoice = SendInvoice(userRepo, clientRepo, invoiceRepo, pdf, emailPort, dispatcher),
             markInvoicePaid = MarkInvoicePaid(invoiceRepo, dispatcher),
             updateDraft = UpdateDraft(userRepo, clientRepo, invoiceRepo, pdf, dispatcher),
             deleteDraft = DeleteDraft(invoiceRepo, dispatcher),
@@ -1142,5 +1181,107 @@ class MessageRouterTest {
             assertEquals(2, invoiceRepo.store.size)
             val secondMsg = messaging.sentMessages[1].second
             assertTrue(!secondMsg.contains("doublon"), "Expected no duplicate warning for different amounts, got: $secondMsg")
+        }
+
+    // --- Error message tests (spec S10) ---
+
+    @Test
+    fun `returns pdf failure message when pdf generation fails on create_invoice`() =
+        runBlocking {
+            val user = makeUser().copy(confirmBeforeCreate = false)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson =
+                                """{"client_name":"Dupont","line_items":[{"description":"Consulting",""" +
+                                    """"quantity":1,"unit_price_euros":800}]}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                    pdfPort = FailingPdfPort(),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("souci pour générer le PDF"), "Expected PDF failure message, got: $msg")
+        }
+
+    @Test
+    fun `returns email failure message when email delivery fails on send_invoice`() =
+        runBlocking {
+            val user = makeUser().copy(siren = mona.domain.model.Siren("123456789"), confirmBeforeCreate = false)
+            val client =
+                mona.domain.model.Client(
+                    id = ClientId("c1"),
+                    userId = user.id,
+                    name = "Dupont",
+                    companyName = null,
+                    email = mona.domain.model.Email("dupont@example.com"),
+                    address = null,
+                    siret = null,
+                    createdAt = BASE_INSTANT,
+                )
+            val draftInvoice = makeInvoice(userId = user.id, clientId = client.id)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "send_invoice",
+                            toolUseId = "id1",
+                            inputJson = """{"invoice_number": "F-2026-03-001"}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = InMemoryInvoiceRepository(draftInvoice),
+                    clientRepo = InMemoryClientRepository(client),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                    emailPort = FailingEmailPort(),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Envoie la facture", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("échoué"), "Expected email failure message, got: $msg")
+        }
+
+    @Test
+    fun `returns sirene unavailable message when sirene api is down`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "update_profile",
+                            toolUseId = "id1",
+                            inputJson = """{"siren": "123456789"}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                    sirenePort = FailingSirenePort(),
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "123456789", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(
+                msg.contains("vérifier ton SIREN"),
+                "Expected SIRENE unavailable message with manual fallback prompt, got: $msg",
+            )
         }
 }

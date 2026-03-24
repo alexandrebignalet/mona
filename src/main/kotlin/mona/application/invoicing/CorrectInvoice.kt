@@ -117,8 +117,16 @@ class CorrectInvoice(
                 is DomainResult.Ok -> r.value
             }
 
-        val creditNotePdf = pdfPort.generateCreditNote(creditNote, original.number, user, client, null)
-        val newInvoicePdf = pdfPort.generateInvoice(newInvoice, user, client, null)
+        val creditNotePdf =
+            when (val r = pdfPort.generateCreditNote(creditNote, original.number, user, client, null)) {
+                is DomainResult.Err -> return r
+                is DomainResult.Ok -> r.value
+            }
+        val newInvoicePdf =
+            when (val r = pdfPort.generateInvoice(newInvoice, user, client, null)) {
+                is DomainResult.Err -> return r
+                is DomainResult.Ok -> r.value
+            }
 
         invoiceRepository.save(cancelTransition.invoice)
         invoiceRepository.save(newInvoice)

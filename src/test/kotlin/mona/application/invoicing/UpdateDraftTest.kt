@@ -181,7 +181,7 @@ private class UdPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = UD_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(UD_FAKE_PDF)
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -189,7 +189,7 @@ private class UdPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = UD_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(UD_FAKE_PDF)
 }
 
 private fun makeUseCase(

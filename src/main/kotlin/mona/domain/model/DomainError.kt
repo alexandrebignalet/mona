@@ -48,4 +48,7 @@ sealed class DomainError(val message: String) {
 
     class InvalidSettingValue(val setting: String, val value: String) :
         DomainError("Invalid value '$value' for setting '$setting'")
+
+    class PdfGenerationFailed(val reason: String) :
+        DomainError("PDF generation failed: $reason")
 }

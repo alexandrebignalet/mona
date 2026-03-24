@@ -170,10 +170,10 @@ private class CapturingPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray {
+    ): DomainResult<ByteArray> {
         capturedIban = plainIban
         capturedUser = user
-        return fakePdf
+        return DomainResult.Ok(fakePdf)
     }
 
     override fun generateCreditNote(
@@ -182,7 +182,7 @@ private class CapturingPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = fakePdf
+    ): DomainResult<ByteArray> = DomainResult.Ok(fakePdf)
 }
 
 private fun makeUseCase(

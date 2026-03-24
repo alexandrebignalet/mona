@@ -37,6 +37,9 @@ object PromptBuilder {
         - Après le délai de paiement, si has_iban = false, propose de récupérer l'IBAN (coordonnées bancaires sur les factures, trouvable dans l'appli bancaire)
         - Après l'IBAN (ou si l'utilisateur le saute), si has_email = false, propose de renseigner l'email
         - Si l'utilisateur refuse ou ignore une demande, passe à la suite sans insister
+
+        Devises :
+        - Mona gère uniquement l'euro (€). Si l'utilisateur mentionne une autre devise (dollars, USD, livres, GBP, CHF, etc.), utilise l'outil `conversational` avec la réponse : "Pour l'instant je ne gère que l'euro — tu veux que je fasse la facture en euros ?"
         """.trimIndent()
 
     fun buildUserContext(user: User): String {

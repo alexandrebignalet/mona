@@ -10,6 +10,7 @@ import mona.domain.model.CreditNote
 import mona.domain.model.CreditNoteSnapshot
 import mona.domain.model.DeclarationPeriod
 import mona.domain.model.DeclarationPeriodicity
+import mona.domain.model.DomainError
 import mona.domain.model.DomainResult
 import mona.domain.model.Email
 import mona.domain.model.Invoice
@@ -132,7 +133,7 @@ private class FakePdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(FAKE_PDF)
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -140,7 +141,24 @@ private class FakePdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(FAKE_PDF)
+}
+
+private class FailingPdfPort : PdfPort {
+    override fun generateInvoice(
+        invoice: Invoice,
+        user: User,
+        client: Client,
+        plainIban: String?,
+    ): DomainResult<ByteArray> = DomainResult.Err(DomainError.PdfGenerationFailed("simulated failure"))
+
+    override fun generateCreditNote(
+        creditNote: CreditNote,
+        originalInvoiceNumber: InvoiceNumber,
+        user: User,
+        client: Client,
+        plainIban: String?,
+    ): DomainResult<ByteArray> = DomainResult.Err(DomainError.PdfGenerationFailed("simulated failure"))
 }
 
 private fun makeUser(id: UserId = UserId("u1")): User =
@@ -358,5 +376,23 @@ class CreateInvoiceTest {
             assertIs<DomainResult.Ok<CreateInvoiceResult>>(result)
             val created = assertIs<CreateInvoiceResult.Created>(result.value)
             assertEquals(FAKE_PDF.toList(), created.pdf.toList())
+        }
+
+    @Test
+    fun `returns PdfGenerationFailed when pdf port fails`() =
+        runBlocking {
+            val useCase =
+                CreateInvoice(
+                    InMemoryUserRepository(user),
+                    InMemoryClientRepository(),
+                    InMemoryInvoiceRepository(),
+                    FailingPdfPort(),
+                    EventDispatcher(),
+                )
+
+            val result = useCase.execute(makeCommand())
+
+            assertIs<DomainResult.Err>(result)
+            assertIs<DomainError.PdfGenerationFailed>(result.error)
         }
 }

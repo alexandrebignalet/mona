@@ -74,7 +74,11 @@ class CancelInvoice(
                 is DomainResult.Ok -> r.value
             }
 
-        val creditNotePdf = pdfPort.generateCreditNote(creditNote, invoice.number, user, client, null)
+        val creditNotePdf =
+            when (val r = pdfPort.generateCreditNote(creditNote, invoice.number, user, client, null)) {
+                is DomainResult.Err -> return r
+                is DomainResult.Ok -> r.value
+            }
 
         invoiceRepository.save(transition.invoice)
         eventDispatcher.dispatch(transition.events)

@@ -3,6 +3,8 @@ package mona.infrastructure.pdf
 import mona.domain.model.Cents
 import mona.domain.model.Client
 import mona.domain.model.CreditNote
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
 import mona.domain.model.Invoice
 import mona.domain.model.InvoiceNumber
 import mona.domain.model.InvoiceStatus
@@ -35,9 +37,9 @@ object PdfGenerator : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray {
+    ): DomainResult<ByteArray> {
         val document = PDDocument()
-        try {
+        return try {
             val page = PDPage(PDRectangle.A4)
             document.addPage(page)
             val regular = PDType1Font(Standard14Fonts.FontName.HELVETICA)
@@ -45,7 +47,9 @@ object PdfGenerator : PdfPort {
             PDPageContentStream(document, page).use { cs ->
                 renderCreditNote(cs, creditNote, originalInvoiceNumber, user, client, plainIban, regular, bold)
             }
-            return ByteArrayOutputStream().also { document.save(it) }.toByteArray()
+            DomainResult.Ok(ByteArrayOutputStream().also { document.save(it) }.toByteArray())
+        } catch (e: Exception) {
+            DomainResult.Err(DomainError.PdfGenerationFailed(e.message ?: "unknown error"))
         } finally {
             document.close()
         }
@@ -56,9 +60,9 @@ object PdfGenerator : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray {
+    ): DomainResult<ByteArray> {
         val document = PDDocument()
-        try {
+        return try {
             val page = PDPage(PDRectangle.A4)
             document.addPage(page)
             val regular = PDType1Font(Standard14Fonts.FontName.HELVETICA)
@@ -69,7 +73,9 @@ object PdfGenerator : PdfPort {
                 }
                 renderInvoice(cs, invoice, user, client, plainIban, regular, bold)
             }
-            return ByteArrayOutputStream().also { document.save(it) }.toByteArray()
+            DomainResult.Ok(ByteArrayOutputStream().also { document.save(it) }.toByteArray())
+        } catch (e: Exception) {
+            DomainResult.Err(DomainError.PdfGenerationFailed(e.message ?: "unknown error"))
         } finally {
             document.close()
         }

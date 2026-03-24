@@ -136,7 +136,7 @@ private class StubPdfPortCorrect : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = CORR_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(CORR_FAKE_PDF)
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -144,7 +144,7 @@ private class StubPdfPortCorrect : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = CORR_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(CORR_FAKE_PDF)
 }
 
 private fun makeCorrectUser(): User =

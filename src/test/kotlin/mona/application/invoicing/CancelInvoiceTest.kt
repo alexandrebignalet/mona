@@ -141,7 +141,7 @@ private class StubPdfPortCancelInvoice : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = CI_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(CI_FAKE_PDF)
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -149,7 +149,7 @@ private class StubPdfPortCancelInvoice : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = CI_FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(CI_FAKE_PDF)
 }
 
 private fun makeCancelUser(): User =

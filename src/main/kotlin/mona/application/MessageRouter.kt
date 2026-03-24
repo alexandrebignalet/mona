@@ -969,5 +969,6 @@ class MessageRouter(
             is DomainError.CreditNoteAmountMismatch -> "Problème avec le montant de l'avoir."
             is DomainError.UnknownSetting -> "Je ne connais pas ce paramètre."
             is DomainError.InvalidSettingValue -> "Valeur invalide — utilise un nombre entre 1 et 60 pour le délai de paiement."
+            is DomainError.PdfGenerationFailed -> "J'ai un souci pour générer le PDF — je réessaie."
         }
 }

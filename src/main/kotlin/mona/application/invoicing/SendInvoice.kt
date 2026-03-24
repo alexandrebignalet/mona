@@ -44,7 +44,11 @@ class SendInvoice(
                 ?: return DomainResult.Err(DomainError.ClientNotFound(invoice.clientId.value))
         if (client.email == null) return DomainResult.Err(DomainError.ProfileIncomplete(listOf("client.email")))
 
-        val pdf = pdfPort.generateInvoice(invoice, user, client, command.plainIban)
+        val pdf =
+            when (val r = pdfPort.generateInvoice(invoice, user, client, command.plainIban)) {
+                is DomainResult.Err -> return r
+                is DomainResult.Ok -> r.value
+            }
         val transition =
             when (val r = invoice.send(now)) {
                 is DomainResult.Err -> return r

@@ -2,6 +2,7 @@ package mona.domain.port
 
 import mona.domain.model.Client
 import mona.domain.model.CreditNote
+import mona.domain.model.DomainResult
 import mona.domain.model.Invoice
 import mona.domain.model.InvoiceNumber
 import mona.domain.model.User
@@ -12,7 +13,7 @@ interface PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray
+    ): DomainResult<ByteArray>
 
     fun generateCreditNote(
         creditNote: CreditNote,
@@ -20,5 +21,5 @@ interface PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray
+    ): DomainResult<ByteArray>
 }

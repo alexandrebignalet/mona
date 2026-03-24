@@ -28,18 +28,11 @@ Phases 1.1–14.1 done. See git log for details.
 - 4 new MessageRouter tests; `findByClientAndAmountSince` in test repo now does real matching
 - All builds and ktlintCheck pass
 
-### 14.4 Error Messages and Edge Cases
-- **Layer:** all
-- **Spec:** mvp-spec S10
-- **What:** Review and implement all user-facing error messages from mvp-spec S10. LLM unavailable, SIRENE down (manual fallback), email failure, PDF failure. Non-EUR currency rejection. Ensure all errors are in French, conversational, and actionable.
-- **Acceptance criteria:**
-  - [ ] LLM unavailable: "Je suis momentanement indisponible..."
-  - [ ] SIRENE down: falls back to manual data collection
-  - [ ] Email failure: "L'envoi a echoue, je reessaie automatiquement."
-  - [ ] PDF failure: "J'ai un souci pour generer le PDF..."
-  - [ ] Non-EUR currency: "Pour l'instant je ne gere que l'euro..."
-  - [ ] All error messages match mvp-spec S10 table
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+### 14.4 Error Messages and Edge Cases — DONE
+- `PdfPort.generateInvoice/generateCreditNote` now returns `DomainResult<ByteArray>`; all call sites and tests updated
+- `DomainError.PdfGenerationFailed`, `LlmUnavailable`, `EmailDeliveryFailed`, `SireneLookupFailed` map to French user messages in `formatDomainError`
+- Non-EUR currency rejection handled in PromptBuilder system prompt via `conversational` tool
+- 3 new MessageRouterTest cases: PDF failure, email failure, SIRENE down; 347 tests pass
 
 ---
 

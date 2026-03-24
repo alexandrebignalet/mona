@@ -136,7 +136,7 @@ private class StubPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(FAKE_PDF)
 
     override fun generateCreditNote(
         creditNote: CreditNote,
@@ -144,7 +144,7 @@ private class StubPdfPort : PdfPort {
         user: User,
         client: Client,
         plainIban: String?,
-    ): ByteArray = FAKE_PDF
+    ): DomainResult<ByteArray> = DomainResult.Ok(FAKE_PDF)
 }
 
 private class StubEmailPort(private val result: DomainResult<Unit> = DomainResult.Ok(Unit)) : EmailPort {
