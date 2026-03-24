@@ -29,6 +29,7 @@ object DatabaseFactory {
                 ConversationMessagesTable,
                 UrssafRemindersTable,
                 OnboardingRemindersTable,
+                VatAlertsTable,
             )
         }
         return db

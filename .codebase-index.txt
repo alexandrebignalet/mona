@@ -1,0 +1,832 @@
+==> src/test/kotlin/mona/EventDispatcherTest.kt <==
+package mona
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.DomainEvent
+
+==> src/test/kotlin/mona/golden/GoldenParsingTest.kt <==
+package mona.golden
+
+import mona.infrastructure.llm.ClaudeApiClient
+import org.junit.jupiter.api.Assumptions
+import org.junit.jupiter.api.DynamicTest
+
+==> src/test/kotlin/mona/golden/GoldenTestCase.kt <==
+package mona.golden
+
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+
+==> src/test/kotlin/mona/golden/GoldenContextTest.kt <==
+package mona.golden
+
+import mona.infrastructure.llm.ClaudeApiClient
+import org.junit.jupiter.api.Assumptions
+import org.junit.jupiter.api.DynamicTest
+
+==> src/test/kotlin/mona/application/onboarding/OnboardingRecoveryJobTest.kt <==
+package mona.application.onboarding
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/onboarding/FinalizeInvoiceTest.kt <==
+package mona.application.onboarding
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/onboarding/SetupProfileTest.kt <==
+package mona.application.onboarding
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.DeclarationPeriodicity
+
+==> src/test/kotlin/mona/application/MessageRouterTest.kt <==
+package mona.application
+
+import kotlinx.coroutines.runBlocking
+import mona.application.client.GetClientHistory
+import mona.application.client.ListClients
+
+==> src/test/kotlin/mona/application/urssaf/CheckVatThresholdTest.kt <==
+package mona.application.urssaf
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/urssaf/UrssafReminderJobTest.kt <==
+package mona.application.urssaf
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/payment/PaymentCheckInJobTest.kt <==
+package mona.application.payment
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/payment/OverdueTransitionJobTest.kt <==
+package mona.application.payment
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/CreateInvoiceTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/CancelInvoiceTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/CorrectInvoiceTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/UpdateDraftTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/HandleBouncedEmailTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/invoicing/DeleteDraftTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/MarkInvoicePaidTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/invoicing/SendInvoiceTest.kt <==
+package mona.application.invoicing
+
+import kotlinx.coroutines.runBlocking
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+
+==> src/test/kotlin/mona/application/revenue/ExportInvoicesCsvTest.kt <==
+package mona.application.revenue
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/revenue/GetUnpaidInvoicesTest.kt <==
+package mona.application.revenue
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/revenue/GetRevenueTest.kt <==
+package mona.application.revenue
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/client/UpdateClientTest.kt <==
+package mona.application.client
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.Client
+import mona.domain.model.ClientId
+
+==> src/test/kotlin/mona/application/client/ListClientsTest.kt <==
+package mona.application.client
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/client/GetClientHistoryTest.kt <==
+package mona.application.client
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/application/settings/ConfigureSettingTest.kt <==
+package mona.application.settings
+
+import kotlinx.coroutines.runBlocking
+import mona.domain.model.ActivityType
+import mona.domain.model.DeclarationPeriodicity
+
+==> src/test/kotlin/mona/infrastructure/PromptBuilderTest.kt <==
+package mona.infrastructure
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
+
+==> src/test/kotlin/mona/infrastructure/SireneApiClientTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.test.runTest
+import mona.domain.model.ActivityType
+import mona.domain.model.DomainError
+
+==> src/test/kotlin/mona/infrastructure/ActionParserTest.kt <==
+package mona.infrastructure
+
+import kotlinx.serialization.json.Json
+import mona.domain.port.LlmToolDefinition
+import mona.infrastructure.llm.ActionParser
+
+==> src/test/kotlin/mona/infrastructure/ResendEmailAdapterTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.test.runTest
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+
+==> src/test/kotlin/mona/infrastructure/PdfGeneratorTest.kt <==
+package mona.infrastructure
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.Client
+
+==> src/test/kotlin/mona/infrastructure/IbanCryptoTest.kt <==
+package mona.infrastructure
+
+import mona.infrastructure.crypto.IbanCrypto
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+==> src/test/kotlin/mona/infrastructure/ClaudeApiClientTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.test.runTest
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+
+==> src/test/kotlin/mona/infrastructure/DatabaseIntegrationTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.test.runTest
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+
+==> src/test/kotlin/mona/infrastructure/ResendWebhookHandlerTest.kt <==
+package mona.infrastructure
+
+import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+
+==> src/test/kotlin/mona/AppTest.kt <==
+package mona
+
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
+
+==> src/test/kotlin/mona/domain/InvoiceTest.kt <==
+package mona.domain
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.ClientId
+
+==> src/test/kotlin/mona/domain/InvoiceNumberingTest.kt <==
+package mona.domain
+
+import mona.domain.model.CreditNoteNumber
+import mona.domain.model.CreditNoteNumbering
+import mona.domain.model.DomainResult
+
+==> src/test/kotlin/mona/domain/DomainResultTest.kt <==
+package mona.domain
+
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+import mona.domain.model.flatMap
+
+==> src/test/kotlin/mona/domain/LineItemTest.kt <==
+package mona.domain
+
+import mona.domain.model.Cents
+import mona.domain.model.LineItem
+import java.math.BigDecimal
+
+==> src/test/kotlin/mona/domain/UrssafThresholdsTest.kt <==
+package mona.domain
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriodicity
+
+==> src/test/kotlin/mona/domain/RevenueCalculationTest.kt <==
+package mona.domain
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.CreditNoteNumber
+
+==> src/test/kotlin/mona/domain/ValuesTest.kt <==
+package mona.domain
+
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriod
+import mona.domain.model.Email
+
+==> src/main/kotlin/mona/application/EventDispatcher.kt <==
+package mona.application
+
+import mona.domain.model.DomainEvent
+
+class EventDispatcher {
+
+==> src/main/kotlin/mona/application/onboarding/FinalizeInvoice.kt <==
+package mona.application.onboarding
+
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+import mona.domain.model.Invoice
+
+==> src/main/kotlin/mona/application/onboarding/OnboardingRecoveryJob.kt <==
+package mona.application.onboarding
+
+import mona.domain.model.InvoiceStatus
+import mona.domain.model.OnboardingReminderRecord
+import mona.domain.model.UserId
+
+==> src/main/kotlin/mona/application/onboarding/SetupProfile.kt <==
+package mona.application.onboarding
+
+import mona.domain.model.ActivityType
+import mona.domain.model.DeclarationPeriodicity
+import mona.domain.model.DomainError
+
+==> src/main/kotlin/mona/application/urssaf/CheckVatThreshold.kt <==
+package mona.application.urssaf
+
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriod
+import mona.domain.model.DomainEvent
+
+==> src/main/kotlin/mona/application/urssaf/UrssafReminderJob.kt <==
+package mona.application.urssaf
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriod
+
+==> src/main/kotlin/mona/application/payment/PaymentCheckInJob.kt <==
+package mona.application.payment
+
+import mona.domain.model.Cents
+import mona.domain.port.ClientRepository
+import mona.domain.port.InvoiceRepository
+
+==> src/main/kotlin/mona/application/payment/OverdueTransitionJob.kt <==
+package mona.application.payment
+
+import mona.application.EventDispatcher
+import mona.domain.model.DomainResult
+import mona.domain.port.InvoiceRepository
+
+==> src/main/kotlin/mona/application/invoicing/SendInvoice.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+
+==> src/main/kotlin/mona/application/invoicing/MarkInvoicePaid.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+
+==> src/main/kotlin/mona/application/invoicing/UpdateDraft.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+import mona.domain.model.Client
+
+==> src/main/kotlin/mona/application/invoicing/DeleteDraft.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+
+==> src/main/kotlin/mona/application/invoicing/CorrectInvoice.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+import mona.domain.model.CreditNote
+
+==> src/main/kotlin/mona/application/invoicing/CreateInvoice.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.ActivityType
+import mona.domain.model.Client
+
+==> src/main/kotlin/mona/application/invoicing/HandleBouncedEmail.kt <==
+package mona.application.invoicing
+
+import mona.domain.model.DomainResult
+import mona.domain.model.InvoiceNumber
+import mona.domain.port.InvoiceRepository
+
+==> src/main/kotlin/mona/application/invoicing/CancelInvoice.kt <==
+package mona.application.invoicing
+
+import mona.application.EventDispatcher
+import mona.domain.model.CreditNote
+import mona.domain.model.CreditNoteNumbering
+
+==> src/main/kotlin/mona/application/MessageRouter.kt <==
+package mona.application
+
+import mona.application.client.GetClientHistory
+import mona.application.client.GetClientHistoryCommand
+import mona.application.client.GetClientHistoryResult
+
+==> src/main/kotlin/mona/application/revenue/GetRevenue.kt <==
+package mona.application.revenue
+
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriod
+import mona.domain.model.InvoiceStatus
+
+==> src/main/kotlin/mona/application/revenue/ExportInvoicesCsv.kt <==
+package mona.application.revenue
+
+import mona.domain.model.InvoiceStatus
+import mona.domain.model.UserId
+import mona.domain.port.ClientRepository
+
+==> src/main/kotlin/mona/application/revenue/GetUnpaidInvoices.kt <==
+package mona.application.revenue
+
+import mona.domain.model.Invoice
+import mona.domain.model.InvoiceStatus
+import mona.domain.model.UserId
+
+==> src/main/kotlin/mona/application/client/GetClientHistory.kt <==
+package mona.application.client
+
+import mona.domain.model.Client
+import mona.domain.model.ClientId
+import mona.domain.model.DomainError
+
+==> src/main/kotlin/mona/application/client/ListClients.kt <==
+package mona.application.client
+
+import mona.domain.model.Cents
+import mona.domain.model.Client
+import mona.domain.model.UserId
+
+==> src/main/kotlin/mona/application/client/UpdateClient.kt <==
+package mona.application.client
+
+import mona.domain.model.Client
+import mona.domain.model.ClientId
+import mona.domain.model.DomainError
+
+==> src/main/kotlin/mona/application/settings/ConfigureSetting.kt <==
+package mona.application.settings
+
+import mona.domain.model.DomainError
+import mona.domain.model.DomainResult
+import mona.domain.model.PaymentDelayDays
+
+==> src/main/kotlin/mona/infrastructure/crypto/IbanCryptoAdapter.kt <==
+package mona.infrastructure.crypto
+
+import mona.domain.port.CryptoPort
+
+class IbanCryptoAdapter(private val key: ByteArray) : CryptoPort {
+
+==> src/main/kotlin/mona/infrastructure/crypto/IbanCrypto.kt <==
+package mona.infrastructure.crypto
+
+import java.security.SecureRandom
+import java.util.Base64
+import javax.crypto.Cipher
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedOnboardingReminderRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.OnboardingReminderRecord
+import mona.domain.model.UserId
+import mona.domain.port.OnboardingReminderRepository
+
+==> src/main/kotlin/mona/infrastructure/db/Tables.kt <==
+package mona.infrastructure.db
+
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.timestamp
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedUserRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.ActivityType
+import mona.domain.model.DeclarationPeriodicity
+import mona.domain.model.Email
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedUrssafReminderRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.UrssafReminderRecord
+import mona.domain.model.UserId
+import mona.domain.port.UrssafReminderRepository
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedVatAlertRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.UserId
+import mona.domain.model.VatAlertRecord
+import mona.domain.port.VatAlertRepository
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedConversationRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.UserId
+import mona.domain.port.ConversationMessage
+import mona.domain.port.ConversationRepository
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedInvoiceRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.ClientId
+
+==> src/main/kotlin/mona/infrastructure/db/DatabaseFactory.kt <==
+package mona.infrastructure.db
+
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.transactions.transaction
+
+==> src/main/kotlin/mona/infrastructure/db/ExposedClientRepository.kt <==
+package mona.infrastructure.db
+
+import mona.domain.model.Client
+import mona.domain.model.ClientId
+import mona.domain.model.Email
+
+==> src/main/kotlin/mona/infrastructure/telegram/TelegramBotAdapter.kt <==
+package mona.infrastructure.telegram
+
+import dev.inmo.tgbotapi.bot.RequestsExecutor
+import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
+import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
+
+==> src/main/kotlin/mona/infrastructure/llm/ToolDefinitions.kt <==
+package mona.infrastructure.llm
+
+import mona.domain.port.LlmToolDefinition
+
+object ToolDefinitions {
+
+==> src/main/kotlin/mona/infrastructure/llm/ActionTypes.kt <==
+package mona.infrastructure.llm
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+
+==> src/main/kotlin/mona/infrastructure/llm/ClaudeApiClient.kt <==
+package mona.infrastructure.llm
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+
+==> src/main/kotlin/mona/infrastructure/llm/PromptBuilder.kt <==
+package mona.infrastructure.llm
+
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import mona.domain.model.User
+
+==> src/main/kotlin/mona/infrastructure/pdf/PdfGenerator.kt <==
+package mona.infrastructure.pdf
+
+import mona.domain.model.Cents
+import mona.domain.model.Client
+import mona.domain.model.CreditNote
+
+==> src/main/kotlin/mona/infrastructure/email/ResendEmailAdapter.kt <==
+package mona.infrastructure.email
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
+
+==> src/main/kotlin/mona/infrastructure/email/ResendWebhookHandler.kt <==
+package mona.infrastructure.email
+
+import com.sun.net.httpserver.HttpExchange
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+==> src/main/kotlin/mona/infrastructure/sirene/SireneApiClient.kt <==
+package mona.infrastructure.sirene
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+
+==> src/main/kotlin/mona/App.kt <==
+package mona
+
+import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+
+==> src/main/kotlin/mona/domain/port/CryptoPort.kt <==
+package mona.domain.port
+
+interface CryptoPort {
+    fun encrypt(plaintext: String): ByteArray
+
+
+==> src/main/kotlin/mona/domain/port/VatAlertRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.UserId
+import mona.domain.model.VatAlertRecord
+
+
+==> src/main/kotlin/mona/domain/port/PdfPort.kt <==
+package mona.domain.port
+
+import mona.domain.model.Client
+import mona.domain.model.CreditNote
+import mona.domain.model.Invoice
+
+==> src/main/kotlin/mona/domain/port/OnboardingReminderRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.OnboardingReminderRecord
+import mona.domain.model.UserId
+
+
+==> src/main/kotlin/mona/domain/port/InvoiceRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.Cents
+import mona.domain.model.ClientId
+import mona.domain.model.CreditNoteNumber
+
+==> src/main/kotlin/mona/domain/port/UserRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.User
+import mona.domain.model.UserId
+
+
+==> src/main/kotlin/mona/domain/port/MessagingPort.kt <==
+package mona.domain.port
+
+import mona.domain.model.UserId
+
+data class IncomingMessage(
+
+==> src/main/kotlin/mona/domain/port/LlmPort.kt <==
+package mona.domain.port
+
+import mona.domain.model.DomainResult
+
+data class LlmToolDefinition(
+
+==> src/main/kotlin/mona/domain/port/EmailPort.kt <==
+package mona.domain.port
+
+import mona.domain.model.DomainResult
+
+interface EmailPort {
+
+==> src/main/kotlin/mona/domain/port/ClientRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.Client
+import mona.domain.model.ClientId
+import mona.domain.model.UserId
+
+==> src/main/kotlin/mona/domain/port/UrssafReminderRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.UrssafReminderRecord
+import mona.domain.model.UserId
+
+
+==> src/main/kotlin/mona/domain/port/ConversationRepository.kt <==
+package mona.domain.port
+
+import mona.domain.model.UserId
+
+data class ConversationMessage(
+
+==> src/main/kotlin/mona/domain/port/SirenePort.kt <==
+package mona.domain.port
+
+import mona.domain.model.ActivityType
+import mona.domain.model.DomainResult
+import mona.domain.model.PostalAddress
+
+==> src/main/kotlin/mona/domain/model/CreditNote.kt <==
+package mona.domain.model
+
+import java.time.LocalDate
+
+data class CreditNote(
+
+==> src/main/kotlin/mona/domain/model/Enums.kt <==
+package mona.domain.model
+
+import java.time.LocalDate
+
+enum class PaymentMethod { VIREMENT, CHEQUE, ESPECES, CARTE, AUTRE }
+
+==> src/main/kotlin/mona/domain/model/OnboardingReminderRecord.kt <==
+package mona.domain.model
+
+import java.time.Instant
+
+data class OnboardingReminderRecord(
+
+==> src/main/kotlin/mona/domain/model/InvoiceNumbering.kt <==
+package mona.domain.model
+
+import java.time.YearMonth
+
+object InvoiceNumbering {
+
+==> src/main/kotlin/mona/domain/model/DomainResult.kt <==
+package mona.domain.model
+
+sealed class DomainResult<out T> {
+    data class Ok<T>(val value: T) : DomainResult<T>()
+
+
+==> src/main/kotlin/mona/domain/model/DomainError.kt <==
+package mona.domain.model
+
+sealed class DomainError(val message: String) {
+    class InvalidTransition(val from: InvoiceStatus, val to: String) :
+        DomainError("Cannot transition from ${from::class.simpleName} to $to")
+
+==> src/main/kotlin/mona/domain/model/Values.kt <==
+package mona.domain.model
+
+import java.time.LocalDate
+
+@JvmInline
+
+==> src/main/kotlin/mona/domain/model/DomainEvent.kt <==
+package mona.domain.model
+
+import java.time.Instant
+import java.time.LocalDate
+
+
+==> src/main/kotlin/mona/domain/model/LineItem.kt <==
+package mona.domain.model
+
+import java.math.BigDecimal
+import java.math.RoundingMode
+
+
+==> src/main/kotlin/mona/domain/model/Snapshots.kt <==
+package mona.domain.model
+
+import java.time.LocalDate
+
+data class PaidInvoiceSnapshot(
+
+==> src/main/kotlin/mona/domain/model/Invoice.kt <==
+package mona.domain.model
+
+import java.time.Instant
+import java.time.LocalDate
+
+
+==> src/main/kotlin/mona/domain/model/UrssafReminderRecord.kt <==
+package mona.domain.model
+
+import java.time.Instant
+
+data class UrssafReminderRecord(
+
+==> src/main/kotlin/mona/domain/model/Client.kt <==
+package mona.domain.model
+
+import java.time.Instant
+
+data class Client(
+
+==> src/main/kotlin/mona/domain/model/User.kt <==
+package mona.domain.model
+
+import java.time.Instant
+
+data class User(
+
+==> src/main/kotlin/mona/domain/model/VatAlertRecord.kt <==
+package mona.domain.model
+
+import java.time.Instant
+
+data class VatAlertRecord(
+
+==> src/main/kotlin/mona/domain/service/RevenueCalculation.kt <==
+package mona.domain.service
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.CreditNoteSnapshot
+
+==> src/main/kotlin/mona/domain/service/UrssafThresholds.kt <==
+package mona.domain.service
+
+import mona.domain.model.ActivityType
+import mona.domain.model.Cents
+import mona.domain.model.DeclarationPeriodicity

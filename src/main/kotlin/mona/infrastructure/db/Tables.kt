@@ -105,3 +105,12 @@ object OnboardingRemindersTable : Table("onboarding_reminders") {
 
     override val primaryKey = PrimaryKey(userId)
 }
+
+object VatAlertsTable : Table("vat_alerts") {
+    val userId = varchar("user_id", 36).references(UsersTable.id)
+    val yearKey = varchar("year_key", 20)
+    val p80SentAt = timestamp("p80_sent_at").nullable()
+    val p95SentAt = timestamp("p95_sent_at").nullable()
+
+    override val primaryKey = PrimaryKey(userId, yearKey)
+}

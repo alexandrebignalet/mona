@@ -31,13 +31,10 @@ import mona.application.revenue.ExportInvoicesCsv
 import mona.application.revenue.GetRevenue
 import mona.application.revenue.GetUnpaidInvoices
 import mona.application.settings.ConfigureSetting
+import mona.application.urssaf.CheckVatThreshold
 import mona.application.urssaf.UrssafReminderJob
-import mona.domain.model.Cents
-import mona.domain.model.DeclarationPeriod
 import mona.domain.model.DomainEvent
 import mona.domain.port.MenuItem
-import mona.domain.service.RevenueCalculation
-import mona.domain.service.UrssafThresholds
 import mona.infrastructure.crypto.IbanCrypto
 import mona.infrastructure.crypto.IbanCryptoAdapter
 import mona.infrastructure.db.DatabaseFactory
@@ -47,6 +44,7 @@ import mona.infrastructure.db.ExposedInvoiceRepository
 import mona.infrastructure.db.ExposedOnboardingReminderRepository
 import mona.infrastructure.db.ExposedUrssafReminderRepository
 import mona.infrastructure.db.ExposedUserRepository
+import mona.infrastructure.db.ExposedVatAlertRepository
 import mona.infrastructure.email.ResendEmailAdapter
 import mona.infrastructure.email.ResendWebhookHandler
 import mona.infrastructure.llm.ClaudeApiClient
@@ -87,6 +85,7 @@ fun main() {
     val conversationRepository = ExposedConversationRepository()
     val urssafReminderRepository = ExposedUrssafReminderRepository()
     val onboardingReminderRepository = ExposedOnboardingReminderRepository()
+    val vatAlertRepository = ExposedVatAlertRepository()
 
     // Infrastructure adapters
     val cryptoAdapter = IbanCryptoAdapter(IbanCrypto.loadKeyFromEnv())
@@ -120,32 +119,13 @@ fun main() {
     val setupProfile = SetupProfile(userRepository, sirenePort, cryptoAdapter)
     val finalizeInvoice = FinalizeInvoice(userRepository, clientRepository, invoiceRepository, pdfPort)
     val configureSetting = ConfigureSetting(userRepository)
+    val checkVatThreshold = CheckVatThreshold(invoiceRepository, vatAlertRepository, telegramAdapter)
 
     // Register event handlers
     eventDispatcher.register { event ->
         when (event) {
             is DomainEvent.InvoicePaid -> {
-                val yearStart = LocalDate.of(event.paidDate.year, 1, 1)
-                val yearEnd = LocalDate.of(event.paidDate.year, 12, 31)
-                val period = DeclarationPeriod(yearStart, yearEnd)
-                val snapshots = invoiceRepository.findPaidInPeriod(event.userId, period)
-                val creditNotes = invoiceRepository.findCreditNotesInPeriod(event.userId, period)
-                val breakdown = RevenueCalculation.compute(snapshots, creditNotes)
-                val revenue = breakdown.byActivity[event.activityType] ?: Cents.ZERO
-                val alert = UrssafThresholds.checkTvaThreshold(revenue, event.activityType)
-                if (alert != null) {
-                    val pct = alert.percentReached
-                    val thresholdEuros = alert.threshold.value / 100
-                    val msg =
-                        if (pct >= 95) {
-                            "⚠️ Attention ! Tu es à $pct% du seuil de franchise TVA ($thresholdEuros €). " +
-                                "Tu risques de le dépasser — pense à consulter un comptable."
-                        } else {
-                            "📊 Tu approches du seuil TVA : $pct% atteint (seuil : $thresholdEuros €). " +
-                                "Garde un œil sur ton CA !"
-                        }
-                    telegramAdapter.sendMessage(event.userId, msg)
-                }
+                checkVatThreshold.execute(event)
             }
             is DomainEvent.InvoiceOverdue -> {
                 telegramAdapter.sendMessage(

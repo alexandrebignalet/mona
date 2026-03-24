@@ -1,0 +1,102 @@
+specs/mvp-spec.md:# Mona MVP — Product Specification
+specs/mvp-spec.md:## Overview
+specs/mvp-spec.md:### Deployment Strategy
+specs/mvp-spec.md:### Channel Strategy
+specs/mvp-spec.md:## 1. User Onboarding
+specs/mvp-spec.md:### Progressive Flow
+specs/mvp-spec.md:### SIREN Verification (SIRENE API)
+specs/mvp-spec.md:### Onboarding Drop-Off Recovery
+specs/mvp-spec.md:### Example Onboarding
+specs/mvp-spec.md:## 2. Core Feature: Invoice Creation
+specs/mvp-spec.md:### 2.1 Natural Language Parsing
+specs/mvp-spec.md:### 2.2 Multi-Line Invoices
+specs/mvp-spec.md:### 2.3 Confirmation Flow
+specs/mvp-spec.md:### 2.4 Draft Mutability
+specs/mvp-spec.md:### 2.5 Duplicate Detection
+specs/mvp-spec.md:### 2.6 Missing Information Handling
+specs/mvp-spec.md:### 2.7 Invoice Numbering
+specs/mvp-spec.md:### 2.8 PDF Generation
+specs/mvp-spec.md:### 2.9 Credit Notes (Avoirs)
+specs/mvp-spec.md:## 3. Client Directory
+specs/mvp-spec.md:### Auto-Population
+specs/mvp-spec.md:### Disambiguation
+specs/mvp-spec.md:### Fuzzy Matching
+specs/mvp-spec.md:### Client List
+specs/mvp-spec.md:### Client Invoice History
+specs/mvp-spec.md:## 4. Email Sending
+specs/mvp-spec.md:### Flow
+specs/mvp-spec.md:### Email Bounce Handling
+specs/mvp-spec.md:## 5. Payment Tracking
+specs/mvp-spec.md:### Marking as Paid
+specs/mvp-spec.md:### Invoice Statuses
+specs/mvp-spec.md:### Proactive Payment Check-Ins
+specs/mvp-spec.md:### Proactive Overdue Notifications
+specs/mvp-spec.md:## 6. Revenue Tracking
+specs/mvp-spec.md:### Instant Queries
+specs/mvp-spec.md:### Supported Queries
+specs/mvp-spec.md:### Livre des Recettes (Revenue Ledger)
+specs/mvp-spec.md:## 7. URSSAF Reminders
+specs/mvp-spec.md:### Setup
+specs/mvp-spec.md:### Reminder Schedule
+specs/mvp-spec.md:### Reminder Content
+specs/mvp-spec.md:### VAT Threshold Alerts
+specs/mvp-spec.md:## 8. CSV Export
+specs/mvp-spec.md:## 9. Conversation Design
+specs/mvp-spec.md:### Context Management
+specs/mvp-spec.md:### Structured Actions
+specs/mvp-spec.md:### Conversational Messages
+specs/mvp-spec.md:### Unparseable Messages
+specs/mvp-spec.md:### Persistent Menu
+specs/mvp-spec.md:## 10. Error Handling (User-Facing)
+specs/mvp-spec.md:## 11. User Settings
+specs/mvp-spec.md:### Rate Limiting
+specs/mvp-spec.md:## 12. GDPR Compliance
+specs/mvp-spec.md:### Privacy Policy
+specs/mvp-spec.md:### Right to Deletion
+specs/mvp-spec.md:### Data Export
+specs/mvp-spec.md:## 13. Out of Scope (V1)
+specs/mvp-spec.md:## 14. Cost Projections
+specs/mvp-spec.md:### Per-User Monthly Cost
+specs/mvp-spec.md:### Pricing Model
+specs/tech-spec.md:# Mona MVP — Technical Specification
+specs/tech-spec.md:## 1. Tech Stack
+specs/tech-spec.md:### Why Kotlin over Node.js/TypeScript
+specs/tech-spec.md:## 2. DDD Tactical Patterns
+specs/tech-spec.md:### 2.1 Domain Result Type
+specs/tech-spec.md:### 2.2 Value Objects
+specs/tech-spec.md:### 2.3 Enums & Status FSM
+specs/tech-spec.md:### 2.4 Aggregate Boundaries
+specs/tech-spec.md:### 2.5 Aggregate Root Behavior & Domain Events
+specs/tech-spec.md:### 2.6 Invoice Numbering (Pure Domain Logic)
+specs/tech-spec.md:### 2.7 URSSAF Thresholds (Specification Pattern)
+specs/tech-spec.md:### 2.8 Revenue Calculation (Read-Model Snapshots)
+specs/tech-spec.md:### 2.9 Event Dispatcher (Application Layer)
+specs/tech-spec.md:### 2.10 Repository Ports
+specs/tech-spec.md:## 3. Data Model
+specs/tech-spec.md:### User (Aggregate Root)
+specs/tech-spec.md:### Client (Aggregate Root)
+specs/tech-spec.md:### Invoice (Aggregate Root — includes LineItems and CreditNote)
+specs/tech-spec.md:### InvoiceLineItem (Entity within Invoice aggregate)
+specs/tech-spec.md:### CreditNote (Entity within Invoice aggregate)
+specs/tech-spec.md:### ConversationMessage
+specs/tech-spec.md:### Why no Declaration table
+specs/tech-spec.md:## 4. LLM Integration: Claude Tool Use
+specs/tech-spec.md:## 5. Messaging Abstraction
+specs/tech-spec.md:## 6. PDF Generation
+specs/tech-spec.md:## 7. Data Safety
+specs/tech-spec.md:### Storage
+specs/tech-spec.md:### Continuous Backup
+specs/tech-spec.md:### Encryption
+specs/tech-spec.md:### Legal Retention
+specs/tech-spec.md:## 8. Deployment & Availability
+specs/tech-spec.md:### Docker Image
+specs/tech-spec.md:## 9. Scheduled Jobs
+specs/tech-spec.md:## 10. External Integrations
+specs/tech-spec.md:### SIRENE API (INSEE)
+specs/tech-spec.md:### Resend (Email)
+specs/tech-spec.md:### Claude Sonnet API
+specs/tech-spec.md:## 11. Testing Strategy
+specs/tech-spec.md:### Golden Test Suite (LLM Parsing)
+specs/tech-spec.md:### Unit Tests (Pure Domain — No Infra)
+specs/tech-spec.md:### Integration Tests
+specs/tech-spec.md:## 12. Usage Monitoring (V1)
