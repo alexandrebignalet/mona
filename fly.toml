@@ -1,35 +1,35 @@
-app = "mona"
-primary_region = "cdg"
+# fly.toml app configuration file generated for mona-late-tree-7299 on 2026-03-24T07:04:21+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'mona-late-tree-7299'
+primary_region = 'cdg'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
-# Non-secret env vars. Secrets (tokens, keys) are set via `fly secrets set`.
 [env]
-  DATABASE_PATH = "/data/mona.db"
+  DATABASE_PATH = '/data/mona.db'
 
-# Persistent volume for SQLite + PDF storage
 [[mounts]]
-  source = "mona_data"
-  destination = "/data"
+  source = 'mona_data'
+  destination = '/data'
 
-# HTTP service — used only for the /health check endpoint.
-# Not exposed publicly (no public ports), but Fly.io uses it for auto-restart.
 [http_service]
   internal_port = 8080
-  force_https = false
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = false
   min_machines_running = 1
 
   [[http_service.checks]]
-    grace_period = "30s"
-    interval = "15s"
-    method = "GET"
-    path = "/health"
-    timeout = "5s"
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512

@@ -7,7 +7,7 @@ Go to: **GitHub → Settings → Secrets and variables → Actions → New repos
 | Secret | Value | How to get it |
 |--------|-------|---------------|
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | [Anthropic Console](https://console.anthropic.com) → API Keys |
-| `FLY_API_TOKEN` | `fo1_...` | Run: `flyctl tokens create deploy -a mona` |
+| `FLY_API_TOKEN` | `fo1_...` | Run: `flyctl tokens create deploy -a mona-late-tree-7299` |
 
 ---
 
@@ -21,7 +21,7 @@ flyctl secrets set \
   ANTHROPIC_API_KEY="..." \
   IBAN_ENCRYPTION_KEY="..." \
   RESEND_API_KEY="..." \
-  -a mona
+  -a mona-late-tree-7299
 ```
 
 | Secret | Description |
@@ -40,7 +40,7 @@ The non-secret env vars (`DATABASE_PATH`, etc.) are already in `fly.toml`.
 The persistent SQLite volume must exist before the first deploy:
 
 ```bash
-flyctl volumes create mona_data --region cdg --size 1 -a mona
+flyctl volumes create mona_data --region cdg --size 1 -a mona-late-tree-7299
 ```
 
 ---
@@ -53,7 +53,7 @@ Set these as Fly.io secrets if you want continuous SQLite backup:
 flyctl secrets set \
   LITESTREAM_ACCESS_KEY_ID="..." \
   LITESTREAM_SECRET_ACCESS_KEY="..." \
-  -a mona
+  -a mona-late-tree-7299
 ```
 
 Configure the bucket URL in `litestream.yml`.
