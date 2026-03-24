@@ -82,8 +82,15 @@ private data class PendingConfirmation(
     val displayClientName: String,
 )
 
+private data class PendingDuplicate(
+    val invoiceId: mona.domain.model.InvoiceId,
+    val displayClientName: String,
+    val invoiceNumber: mona.domain.model.InvoiceNumber,
+)
+
 private val CONFIRM_TOKENS = setOf("ok", "oui", "confirme", "c'est bon", "vas-y", "go", "yes")
 private val CANCEL_TOKENS = setOf("non", "annule", "annuler", "cancel", "no", "stop", "nope")
+private val DOUBLON_TOKENS = setOf("doublon", "oui doublon", "c'est un doublon", "oui c'est un doublon")
 private val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
 class MessageRouter(
@@ -114,6 +121,7 @@ class MessageRouter(
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
     private val pendingConfirmationMap = ConcurrentHashMap<String, PendingConfirmation>()
+    private val pendingDuplicateMap = ConcurrentHashMap<String, PendingDuplicate>()
 
     suspend fun handle(message: IncomingMessage) {
         val today = LocalDate.now()
@@ -164,6 +172,39 @@ class MessageRouter(
                     return
                 }
                 // Otherwise fall through to LLM (user is correcting the pending invoice)
+            }
+        }
+
+        // Handle pending duplicate resolution (bypasses LLM for doublon/confirm)
+        val pendingDuplicate = pendingDuplicateMap[user.id.value]
+        if (pendingDuplicate != null) {
+            val lower = message.text.trim().lowercase()
+
+            fun isStandaloneToken(tokens: Set<String>): Boolean =
+                tokens.any { token ->
+                    lower.startsWith(token) &&
+                        lower.substring(token.length).all { c -> !c.isLetterOrDigit() }
+                }
+            when {
+                isStandaloneToken(DOUBLON_TOKENS) || isStandaloneToken(CANCEL_TOKENS) -> {
+                    pendingDuplicateMap.remove(user.id.value)
+                    deleteDraft.execute(DeleteDraftCommand(user.id, pendingDuplicate.invoiceId))
+                    val responseText = "OK, je ne crée rien ✓"
+                    messagingPort.sendMessage(user.id, responseText)
+                    saveConversation(user.id, message.text, responseText)
+                    return
+                }
+                isStandaloneToken(CONFIRM_TOKENS) -> {
+                    pendingDuplicateMap.remove(user.id.value)
+                    val responseText =
+                        "Facture ${pendingDuplicate.invoiceNumber.value} créée ✓\n" +
+                            "📄 PDF en pièce jointe.\n" +
+                            "Je l'envoie par mail à ${pendingDuplicate.displayClientName} ?"
+                    messagingPort.sendMessage(user.id, responseText)
+                    saveConversation(user.id, message.text, responseText)
+                    return
+                }
+                // Otherwise fall through to LLM
             }
         }
 
@@ -399,6 +440,8 @@ class MessageRouter(
                         Pair(text, listOf(Pair(r.pdf, "${r.invoice.number.value}.pdf")))
                     }
                     is CreateInvoiceResult.DuplicateWarning -> {
+                        pendingDuplicateMap[user.id.value] =
+                            PendingDuplicate(r.invoice.id, displayClientName, r.invoice.number)
                         val amount = formatCents(r.invoice.amountHt)
                         val text =
                             "Tu m'as déjà demandé une facture de $amount pour $displayClientName " +

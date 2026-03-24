@@ -20,16 +20,13 @@ Phases 1.1–14.1 done. See git log for details.
 - Alerts at 80% and 95% with no-duplicate guard per year+activity key
 - 8 unit tests covering all acceptance criteria; French locale number formatting (`\u202F` normalized in assertions)
 
-### 14.3 Duplicate Detection Integration
-- **Layer:** application
-- **Spec:** mvp-spec S2.5
-- **What:** Integrate duplicate detection into invoice creation flow. Before creating, check for same client + same amount within last 48 hours. If found, warn user and ask for confirmation.
-- **Acceptance criteria:**
-  - [ ] Queries `findByClientAndAmountSince` before creation
-  - [ ] If duplicate found, returns warning with existing invoice reference
-  - [ ] User can confirm "new invoice" or "doublon"
-  - [ ] "Doublon" response cancels creation
-  - [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+### 14.3 Duplicate Detection Integration — DONE
+- `pendingDuplicateMap` added to `MessageRouter`; `PendingDuplicate` and `DOUBLON_TOKENS` added
+- When `CreateInvoiceResult.DuplicateWarning` is returned, stores pending and shows warning with existing number
+- "doublon" / CANCEL_TOKENS → deletes draft, responds "OK, je ne crée rien ✓"
+- CONFIRM_TOKENS → keeps invoice, responds with creation confirmation
+- 4 new MessageRouter tests; `findByClientAndAmountSince` in test repo now does real matching
+- All builds and ktlintCheck pass
 
 ### 14.4 Error Messages and Edge Cases
 - **Layer:** all

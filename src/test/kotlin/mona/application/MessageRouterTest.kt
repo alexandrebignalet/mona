@@ -151,7 +151,10 @@ private class InMemoryInvoiceRepository(vararg seed: Invoice) : InvoiceRepositor
         clientId: ClientId,
         amountHt: Cents,
         since: LocalDate,
-    ): List<Invoice> = emptyList()
+    ): List<Invoice> =
+        store.values.filter {
+            it.clientId == clientId && it.amountHt == amountHt && !it.issueDate.isBefore(since)
+        }
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
 }
@@ -984,5 +987,160 @@ class MessageRouterTest {
             assertTrue(msg.contains("Marie Leclerc"), "Expected name in results, got: $msg")
             assertTrue(msg.contains("987654321"), "Expected SIREN in results, got: $msg")
             assertTrue(msg.contains("C'est laquelle"), "Expected disambiguation question, got: $msg")
+        }
+
+    // --- Duplicate detection tests ---
+
+    private val createDupont800Json =
+        """{"client_name":"Dupont","line_items":[{"description":"Coaching","quantity":1,"unit_price_euros":800}]}"""
+
+    @Test
+    fun `duplicate invoice shows warning with existing number`() =
+        runBlocking {
+            // User without SIREN — confirmBeforeCreate is bypassed (no SIREN check)
+            val user = makeUser().copy(confirmBeforeCreate = false)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson = createDupont800Json,
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            // First invoice — no duplicate
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(1, invoiceRepo.store.size)
+            // Second identical invoice — duplicate warning
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(2, invoiceRepo.store.size, "Duplicate draft saved pending user resolution")
+            val msg = messaging.sentMessages[1].second
+            assertTrue(msg.contains("doublon"), "Expected doublon question, got: $msg")
+            assertTrue(msg.contains("800"), "Expected amount in warning, got: $msg")
+            assertTrue(msg.contains("Dupont"), "Expected client name in warning, got: $msg")
+            assertTrue(msg.contains("F-"), "Expected existing invoice number in warning, got: $msg")
+        }
+
+    @Test
+    fun `doublon response deletes draft and confirms nothing created`() =
+        runBlocking {
+            val user = makeUser().copy(confirmBeforeCreate = false)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson = createDupont800Json,
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            // Create first invoice
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(1, invoiceRepo.store.size)
+            // Trigger duplicate warning (second invoice)
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(2, invoiceRepo.store.size)
+            // User says doublon → second draft deleted
+            router.handle(IncomingMessage(telegramId = 100L, text = "doublon", userId = user.id))
+            assertEquals(1, invoiceRepo.store.size, "Duplicate draft must be deleted after doublon")
+            val responseText = messaging.sentMessages[2].second
+            assertTrue(responseText.contains("rien"), "Expected 'je ne crée rien' response, got: $responseText")
+        }
+
+    @Test
+    fun `confirming after duplicate warning keeps the invoice`() =
+        runBlocking {
+            val user = makeUser().copy(confirmBeforeCreate = false)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "create_invoice",
+                            toolUseId = "id1",
+                            inputJson = createDupont800Json,
+                        ),
+                    ),
+                )
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            // Create first invoice
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            // Trigger duplicate warning
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            assertEquals(2, invoiceRepo.store.size)
+            // User confirms it's a new invoice
+            router.handle(IncomingMessage(telegramId = 100L, text = "oui", userId = user.id))
+            assertEquals(2, invoiceRepo.store.size, "Both invoices kept after confirmation")
+            val responseText = messaging.sentMessages[2].second
+            assertTrue(responseText.contains("créée ✓"), "Expected creation confirmation, got: $responseText")
+        }
+
+    @Test
+    fun `no duplicate warning when different amounts`() =
+        runBlocking {
+            val user = makeUser().copy(confirmBeforeCreate = false)
+            val messaging = FakeMessagingPort()
+            var callCount = 0
+            val llm =
+                object : LlmPort {
+                    override suspend fun complete(
+                        systemPrompt: String,
+                        userContextJson: String,
+                        messages: List<mona.domain.port.ConversationMessage>,
+                        tools: List<LlmToolDefinition>,
+                    ): DomainResult<LlmResponse> {
+                        callCount++
+                        val json =
+                            if (callCount == 1) {
+                                """{"client_name":"Dupont","line_items":[{"description":"Coaching","quantity":1,"unit_price_euros":800}]}"""
+                            } else {
+                                """{"client_name":"Dupont","line_items":[{"description":"Formation",""" +
+                                    """"quantity":1,"unit_price_euros":1200}]}"""
+                            }
+                        return DomainResult.Ok(
+                            LlmResponse.ToolUse(toolName = "create_invoice", toolUseId = "id$callCount", inputJson = json),
+                        )
+                    }
+                }
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 800€ pour Dupont", userId = user.id))
+            router.handle(IncomingMessage(telegramId = 100L, text = "Facture 1200€ pour Dupont", userId = user.id))
+            assertEquals(2, invoiceRepo.store.size)
+            val secondMsg = messaging.sentMessages[1].second
+            assertTrue(!secondMsg.contains("doublon"), "Expected no duplicate warning for different amounts, got: $secondMsg")
         }
 }
