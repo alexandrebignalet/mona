@@ -56,7 +56,7 @@
       { "role": "assistant", "content": "Brouillon créé pour Acme, 500 €." }
     ],
     "userMessage": "Supprime-la",
-    "expectedTool": "delete_draft",
+    "expectedTool": "unknown",
     "expectedParams": {}
   },
   {

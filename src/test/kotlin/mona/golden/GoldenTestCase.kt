@@ -95,7 +95,7 @@ object GoldenTestLoader {
                 createdAt = Instant.now(),
             )
         val messages = historyMessages + currentMessage
-        val userContextJson = """{"user_context":{"has_siren":false,"onboarding_step":"awaiting_siren"}}"""
+        val userContextJson = """{"user_context":{"has_siren":true,"has_iban":true,"has_email":true,"onboarding_step":"complete"}}"""
 
         val result =
             runBlocking {
@@ -113,7 +113,7 @@ object GoldenTestLoader {
                     is LlmResponse.ToolUse -> GoldenResult.ToolUsed(r.toolName, r.inputJson)
                     is LlmResponse.Text -> GoldenResult.TextResponse(r.text)
                 }
-            is DomainResult.Err -> GoldenResult.ApiError(result.error.toString())
+            is DomainResult.Err -> GoldenResult.ApiError(result.error.message)
         }
     }
 

@@ -1,6 +1,7 @@
 package mona.infrastructure.llm
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.add
@@ -65,6 +66,9 @@ class ClaudeApiClient internal constructor(
         const val BASE_URL = "https://api.anthropic.com/v1"
         const val MODEL = "claude-sonnet-4-6"
 
+        private const val MAX_RETRIES = 4
+        private const val RETRY_BASE_DELAY_MS = 2000L
+
         private val json = Json { ignoreUnknownKeys = true }
 
         fun fromEnv(): ClaudeApiClient =
@@ -123,13 +127,27 @@ class ClaudeApiClient internal constructor(
             }.toString()
 
         return try {
-            val response = httpExecutor.post("$baseUrl/messages", apiKey, requestBody)
-            if (response.statusCode != 200) {
-                return DomainResult.Err(
-                    DomainError.LlmUnavailable("HTTP ${response.statusCode}: ${response.body}"),
-                )
+            var lastResponse: ClaudeHttpResponse? = null
+            for (attempt in 0 until MAX_RETRIES) {
+                val response = httpExecutor.post("$baseUrl/messages", apiKey, requestBody)
+                if (response.statusCode == 429 || response.statusCode == 529) {
+                    lastResponse = response
+                    if (attempt < MAX_RETRIES - 1) {
+                        val delayMs = RETRY_BASE_DELAY_MS * (1L shl attempt) // 2s, 4s, 8s
+                        delay(delayMs)
+                        continue
+                    }
+                } else if (response.statusCode != 200) {
+                    return DomainResult.Err(
+                        DomainError.LlmUnavailable("HTTP ${response.statusCode}: ${response.body}"),
+                    )
+                } else {
+                    return parseResponse(response.body)
+                }
             }
-            parseResponse(response.body)
+            DomainResult.Err(
+                DomainError.LlmUnavailable("HTTP ${lastResponse!!.statusCode}: ${lastResponse.body}"),
+            )
         } catch (e: Exception) {
             DomainResult.Err(DomainError.LlmUnavailable("Request failed: ${e.message}"))
         }
