@@ -14,62 +14,96 @@ Phases 1.1–14.4 done. See git log for details.
 
 ## Phase 15: GDPR Compliance
 
-### 15.1 GDPR Account Deletion
+### 15.1 Schema Migration for Anonymized Invoice Retention
+
+**Spec:** §12 Right to Deletion — "Retains anonymized invoice records for the 10-year legal retention period"
+
+**What:** Invoices, credit notes, and line items must survive user/client deletion. Currently `InvoicesTable.userId` and `InvoicesTable.clientId` are NOT NULL FK references with no `ON DELETE` clause, and `PRAGMA foreign_keys=ON` is enforced. Deleting a User or Client row would violate FK constraints. This step makes those FKs nullable so deletion sets them to NULL (anonymization).
+
+**Layers:**
+- `infrastructure/db/Tables.kt` — make `InvoicesTable.userId` and `InvoicesTable.clientId` nullable (`.nullable()`)
+- `infrastructure/db/DatabaseFactory.kt` — add migration step: create new invoices table with nullable FKs, copy data, drop old, rename (SQLite ALTER TABLE cannot change column constraints, so the standard recreate-table pattern is needed)
+- `infrastructure/db/ExposedInvoiceRepository.kt` — update all read queries that join on userId/clientId to handle nullable columns; map NULL userId/clientId to the domain model (e.g. return `null` for `UserId?` / `ClientId?` on reconstitution)
+- `domain/model/Invoice.kt` — decide if Invoice allows nullable userId/clientId. Recommended: add a read-only `AnonymizedInvoice` data class or make Invoice.userId/clientId nullable for reconstitution only. Keep `Invoice.create()` requiring non-null values.
+
+**Acceptance criteria:**
+- Migration runs on existing database without data loss
+- Invoices with NULL userId/clientId can be read back from the DB
+- `Invoice.create()` still requires non-null userId and clientId
+- All existing tests pass after migration
+- FK constraints still enforced for non-NULL references
+
+**Tests:**
+- Migration test: insert data, run migration, verify data integrity
+- Repository test: verify invoices with NULL FKs load correctly
+
+**Validation:** `./gradlew build && ./gradlew ktlintCheck`
+
+---
+
+### 15.2 GDPR Account Deletion
 
 **Spec:** §12 Right to Deletion
 
-**What:** Allow a user to request full account deletion via chat. Mona asks for confirmation, then permanently deletes profile data and client records while retaining anonymized invoice records for the 10-year legal retention period.
+**What:** Allow a user to request full account deletion via chat. Mona asks for confirmation, then permanently deletes profile data, client records, conversation history, and auxiliary records while retaining anonymized invoice records (nullified FKs from 15.1).
 
 **Layers:**
-- `domain/port/` — add `delete(userId: UserId)` to `UserRepository`; add `deleteByUser(userId: UserId)` to `ClientRepository`
-- `infrastructure/db/` — implement deletion methods in `ExposedUserRepository` and `ExposedClientRepository`; delete User row; delete all Client rows for the user; delete conversation history rows
-- `application/gdpr/` (new package) — `DeleteAccount` use case: validates user exists, deletes user profile, deletes all client records, deletes conversation history, returns confirmation. Invoice rows remain (their `userId` and `clientId` FKs reference now-deleted rows — this is the "anonymized" retention the spec requires)
+- `domain/port/UserRepository.kt` — add `suspend fun delete(userId: UserId)`
+- `domain/port/ClientRepository.kt` — add `suspend fun deleteByUser(userId: UserId)`
+- `domain/port/ConversationRepository.kt` — add `suspend fun deleteByUser(userId: UserId)`
+- `infrastructure/db/ExposedUserRepository.kt` — implement `delete`: within a single transaction, (1) nullify `InvoicesTable.userId` where it matches, (2) delete from `UrssafRemindersTable`, `OnboardingRemindersTable`, `VatAlertsTable` where userId matches, (3) delete the User row
+- `infrastructure/db/ExposedClientRepository.kt` — implement `deleteByUser`: within a single transaction, (1) nullify `InvoicesTable.clientId` for all client IDs owned by the user, (2) delete all Client rows for the user
+- `infrastructure/db/ExposedConversationRepository.kt` — implement `deleteByUser`: delete all ConversationMessagesTable rows for the user
+- `application/gdpr/DeleteAccount.kt` (new package) — use case: validate user exists, call `clientRepository.deleteByUser(userId)`, call `conversationRepository.deleteByUser(userId)`, call `userRepository.delete(userId)`, return confirmation. ~20 lines. Invoice rows remain with NULL FKs (anonymized).
 - `infrastructure/llm/ActionTypes.kt` — add `ParsedAction.DeleteAccount` (data object)
-- `infrastructure/llm/ToolDefinitions.kt` — add `delete_account` tool (no parameters; user identity comes from context)
+- `infrastructure/llm/ToolDefinitions.kt` — add `delete_account` tool (no parameters; user identity from context)
 - `infrastructure/llm/ActionParser.kt` — map `delete_account` tool call to `ParsedAction.DeleteAccount`
-- `application/MessageRouter.kt` — add `handleDeleteAccount`: send confirmation prompt ("Tu es sûr·e ? Cette action est irréversible."), wait for confirmation token (reuse CONFIRM_TOKENS/CANCEL_TOKENS pattern from duplicate detection via a `pendingDeletionSet`), then execute `DeleteAccount` use case, send farewell message ("Compte supprimé. Tes factures sont conservées de manière anonyme pendant 10 ans (obligation légale). Au revoir ! 👋")
+- `application/MessageRouter.kt` — add `handleDeleteAccount`: send confirmation prompt ("Tu es sur-e ? Cette action est irreversible."), wait for confirmation token (reuse CONFIRM_TOKENS/CANCEL_TOKENS pattern via a `pendingDeletionSet: ConcurrentHashMap`), then execute `DeleteAccount` use case, send farewell message
+
+**Important detail:** The deletion order matters because of FK constraints. Clients must be deleted (and their invoice FK references nullified) before the user row is deleted (and its invoice FK references nullified). The UrssafReminders, OnboardingReminders, and VatAlerts rows must also be deleted before the User row since they reference UsersTable.id.
 
 **Acceptance criteria:**
 - User says "supprime mon compte" and Mona responds with confirmation prompt
-- On confirmation, user profile and all client records are deleted from DB
-- Invoice rows remain in DB (orphaned FKs — no personal data exposed)
-- Conversation history is deleted
-- On cancellation, Mona responds "OK, on oublie ça" and nothing is deleted
-- On next contact after deletion, user is treated as a brand-new user
+- On confirmation: user profile, all client records, conversation history, urssaf/onboarding/vat reminders all deleted from DB
+- Invoice rows remain in DB with NULL userId and NULL clientId (anonymized retention)
+- Credit notes and line items remain intact (they reference InvoicesTable, not UsersTable)
+- On cancellation, Mona responds "OK, on oublie ca" and nothing is deleted
+- On next contact after deletion, user is treated as brand-new (new onboarding)
+- No FK constraint violations during deletion
 
-**Golden tests:** Add `delete_account` entries to `src/test/resources/golden/parsing_cases.json` covering: "supprime mon compte", "je veux supprimer mes données", "efface tout"
+**Golden tests:** Add `delete_account` entries to `src/test/resources/golden/parsing_cases.json` covering: "supprime mon compte", "je veux supprimer mes donnees", "efface tout"
 
 **Tests:**
-- `DeleteAccountTest` — verifies user + clients deleted, invoices untouched
+- `DeleteAccountTest` — verifies user + clients + conversations + reminders deleted, invoices remain with null FKs
 - MessageRouter tests: confirm path + cancel path
 
 **Validation:** `./gradlew build && ./gradlew ktlintCheck`
 
 ---
 
-### 15.2 GDPR Data Export (PDFs + Profile JSON)
+### 15.3 GDPR Data Export (PDFs + Profile JSON)
 
 **Spec:** §12 Data Export
 
-**What:** Allow a user to export all their data via chat. Extends the existing CSV export with: all invoice and credit note PDFs regenerated and sent as documents, plus a profile JSON file.
+**What:** Allow a user to export all their data via chat. Sends: CSV of all invoices, all invoice and credit note PDFs, and a profile JSON file.
 
 **Layers:**
-- `application/gdpr/` — `ExportGdprData` use case: (a) delegates to `ExportInvoicesCsv` for the CSV, (b) loads all non-draft invoices, regenerates each PDF via `PdfPort.generateInvoice` and credit note PDFs via `PdfPort.generateCreditNote` for cancelled invoices with credit notes, (c) serializes user profile to JSON (name, email, activityType, SIREN, SIRET, address, declarationPeriodicity, defaultPaymentDelay; IBAN → `"iban_enregistre": true/false`, never the raw value)
+- `application/gdpr/ExportGdprData.kt` (new) — use case: (a) delegates to `ExportInvoicesCsv` for the CSV, (b) loads all non-draft invoices with their clients, regenerates each PDF via `PdfPort.generateInvoice`, (c) for cancelled invoices with credit notes, generates credit note PDFs via `PdfPort.generateCreditNote`, (d) serializes user profile to JSON (name, email, activityType, SIREN, SIRET, address, declarationPeriodicity, defaultPaymentDelay; IBAN presence as `"iban_enregistre": true/false`, never the raw value)
 - `infrastructure/llm/ActionTypes.kt` — add `ParsedAction.ExportData` (data object)
 - `infrastructure/llm/ToolDefinitions.kt` — add `export_data` tool (no parameters)
 - `infrastructure/llm/ActionParser.kt` — map `export_data` tool call to `ParsedAction.ExportData`
-- `application/MessageRouter.kt` — add `handleExportData`: calls `ExportGdprData`, sends summary text, then CSV, then each PDF, then profile JSON as documents
+- `application/MessageRouter.kt` — add `handleExportData`: calls `ExportGdprData`, sends summary text message with counts, then CSV file, then each PDF, then profile JSON as documents via `MessagingPort`
 
-**Important:** `PdfPort.generateInvoice` requires `User`, `Client`, and `plainIban`. Load client per invoice; pass decrypted IBAN (it's the user's own data export). Skip PDFs for invoices whose client was deleted.
+**Important:** `PdfPort.generateInvoice` requires `User`, `Client`, and `plainIban`. Load client per invoice; pass decrypted IBAN (user's own data). Skip PDFs for invoices whose client was already deleted (clientId is NULL after account deletion — but this path only runs for active users, so clients should always exist).
 
 **Acceptance criteria:**
-- User says "exporte mes données" and receives: CSV + all invoice PDFs + all credit note PDFs + profile JSON
-- Profile JSON contains all profile fields + IBAN presence indicator
+- User says "exporte mes donnees" and receives: summary message + CSV + all invoice PDFs + all credit note PDFs + profile JSON
+- Profile JSON contains all profile fields + IBAN presence indicator (never raw IBAN)
 - Each PDF filename matches the invoice/credit note number
 - Summary message states counts before files are sent
 - Works for a user with zero invoices (sends profile JSON + empty CSV only)
 
-**Golden tests:** Add `export_data` entries to `src/test/resources/golden/parsing_cases.json` covering: "exporte mes données", "je veux télécharger toutes mes données", "export RGPD"
+**Golden tests:** Add `export_data` entries to `src/test/resources/golden/parsing_cases.json` covering: "exporte mes donnees", "je veux telecharger toutes mes donnees", "export RGPD"
 
 **Tests:**
 - `ExportGdprDataTest` — verifies CSV, PDFs, and JSON generated with correct content
@@ -83,27 +117,27 @@ Phases 1.1–14.4 done. See git log for details.
 
 ### 16.1 Revenue Period Label Fix
 
-**Spec:** §6 ("Ce mois : 3 200€ encaissés sur 4 factures.")
+**Spec:** §6 ("Ce mois : 3 200 EUR encaisses sur 4 factures.")
 
-**What:** Fix `handleGetRevenue` in `MessageRouter` to use human-readable French period labels instead of always showing the year number.
+**What:** Fix `handleGetRevenue` in `MessageRouter` (currently at lines 612-639) to use human-readable French period labels instead of raw year numbers. Currently the format is "$year : $total encaisse..." which is unhelpful for monthly/quarterly queries.
 
-**Layer:** `application/MessageRouter.kt` only (no domain changes)
+**Layers:**
+- `application/revenue/GetRevenue.kt` — add `periodType: String` field to `GetRevenueCommand` (values: "month", "quarter", "year"). Pass through from MessageRouter so the response can be formatted correctly. Add `period` passthrough to `GetRevenueResult` so MessageRouter has the date range for labeling.
+- `application/MessageRouter.kt` — add private `formatPeriodLabel(periodType: String, period: DeclarationPeriod): String` function. Uses `java.time.LocalDate.now()` for "current" comparisons and `java.time.format.TextStyle.FULL` with `Locale.FRENCH` for month names.
 
 **Target behavior:**
-- `periodType == "month"` + current month → "Ce mois"
-- `periodType == "month"` + past month → "Mars 2026" (month name + year, `Locale.FRENCH`)
-- `periodType == "quarter"` + current quarter → "Ce trimestre"
-- `periodType == "quarter"` + past quarter → "T1 2026"
-- `periodType == "year"` + current year → "Cette année"
-- `periodType == "year"` + past year → just the year number
-
-**Implementation:** Add a private `formatPeriodLabel(periodType, year, month?, quarter?)` function in MessageRouter using `java.time.LocalDate.now()` for "current" comparisons and `java.time.format.TextStyle.FULL` with `Locale.FRENCH` for month names.
+- `periodType == "month"` + current month -> "Ce mois"
+- `periodType == "month"` + past month -> "Mars 2026" (month name + year)
+- `periodType == "quarter"` + current quarter -> "Ce trimestre"
+- `periodType == "quarter"` + past quarter -> "T1 2026"
+- `periodType == "year"` + current year -> "Cette annee"
+- `periodType == "year"` + past year -> just the year number
 
 **Acceptance criteria:**
 - Monthly revenue query for current month shows "Ce mois : ..."
-- Monthly query for a past month shows "Février 2026 : ..."
+- Monthly query for a past month shows "Fevrier 2026 : ..."
 - Quarterly query for current quarter shows "Ce trimestre : ..."
-- Yearly query shows "Cette année : ..." or just the year
+- Yearly query shows "Cette annee : ..." or just the year
 
 **Tests:** MessageRouter tests for each periodType variant (current + past)
 
@@ -113,19 +147,19 @@ Phases 1.1–14.4 done. See git log for details.
 
 ### 16.2 Revenue Comparison to Previous Period
 
-**Spec:** §6 "Comparison to previous period" + example "Tu es à 68% de ton CA du mois dernier 👍"
+**Spec:** §6 "Tu es a 68% de ton CA du mois dernier"
 
 **What:** When showing monthly or quarterly revenue, compute the previous period's total and show a percentage comparison.
 
 **Layers:**
-- `application/revenue/GetRevenue.kt` — add `previousBreakdown: RevenueBreakdown?` to `GetRevenueResult`. Add `periodType: String` to `GetRevenueCommand`. In `execute()`, compute the previous period (month−1 or quarter−1 via `period.start.minusMonths(1)` / `minusMonths(3)`) only for month/quarter periods. Run `RevenueCalculation.compute()` for the previous period.
-- `application/MessageRouter.kt` — if `result.previousBreakdown` is non-null and its total > 0, append: "Tu es à X% de ton CA [du mois dernier / du trimestre dernier] [emoji]". Emoji: ≥100% → 🚀, ≥60% → 👍, <60% → 💪. If previous total is zero, omit the comparison line.
+- `application/revenue/GetRevenue.kt` — add `previousBreakdown: RevenueBreakdown?` to `GetRevenueResult`. In `execute()`, for month/quarter periodTypes only, compute the previous period (`period.start.minusMonths(1)` for monthly, `period.start.minusMonths(3)` for quarterly), run `RevenueCalculation.compute()` for that period, attach to result. Yearly queries get `null`.
+- `application/MessageRouter.kt` — if `result.previousBreakdown` is non-null and its total > 0, append comparison line: "Tu es a X% de ton CA [du mois dernier / du trimestre dernier] [emoji]". Emoji logic: >=100% -> rocket, >=60% -> thumbs up, <60% -> flexed bicep. If previous total is zero, omit the comparison line entirely. Percentage rounded to nearest integer.
 
 **Acceptance criteria:**
 - Monthly revenue query includes comparison to previous month when previous month has data
 - Quarterly revenue query includes comparison to previous quarter
 - Yearly query has NO comparison line
-- No error when previous period has zero revenue (line simply omitted)
+- No error when previous period has zero revenue (comparison line simply omitted)
 - Percentage rounded to nearest integer
 
 **Tests:**
@@ -154,3 +188,4 @@ These rules are accumulated from implementation experience. Initially seeded fro
 12. **Last 3 messages only.** No separate "last action" pointer. Claude resolves from conversation history.
 13. **No unapproved libraries.** Check CLAUDE.md tech stack before adding any dependency.
 14. **Golden tests gate prompt changes.** Never deploy a prompt change without running the golden suite.
+15. **FK-aware deletion order.** When deleting user data, nullify invoice FK references and delete child tables (reminders, conversations, clients) before deleting the User row.
