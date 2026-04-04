@@ -28,40 +28,9 @@ Phase 16.2 done: `previousBreakdown: RevenueBreakdown?` added to `GetRevenueResu
 
 ## Phase 17: CI/CD Pipelines
 
-### 17.1 CI Workflow
+### 17.1 CI Workflow — DONE
 
-**Spec:** `specs/ci-cd-spec.md` §2
-
-**What:** Create `.github/workflows/ci.yml` — the main build-test-lint pipeline that runs on every push to `main` and every PR targeting `main`. This workflow gates merges. Golden tests skip gracefully via `Assumptions.assumeTrue` when `ANTHROPIC_API_KEY` is absent (reported as skipped, not failed). No secrets required.
-
-**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
-
-**File:** `.github/workflows/ci.yml`
-
-**Contents:**
-- `name: CI` (exact name — deploy workflow references this via `workflow_run.workflows: [CI]`)
-- Trigger: `on: push: branches: [main]` and `pull_request: branches: [main]`
-- Runner: `ubuntu-latest`
-- Job: `build-and-test`
-- Steps:
-  1. `actions/checkout@v4`
-  2. `actions/setup-java@v4` with `distribution: temurin`, `java-version: '21'`
-  3. `actions/cache@v4` with paths `~/.gradle/caches` and `~/.gradle/wrapper`, key based on `hashFiles('**/*.gradle.kts')`
-  4. `./gradlew build --no-daemon`
-  5. `./gradlew ktlintCheck --no-daemon`
-  6. `actions/upload-artifact@v4` uploading `build/reports/tests/` with `if: always()`
-
-**Acceptance criteria:**
-- Workflow triggers on push to main and on PRs to main
-- `name:` field is exactly `CI` (must match deploy workflow's `workflow_run.workflows` reference)
-- JDK is Temurin 21
-- Gradle caches are restored and saved between runs
-- Build and lint steps use `--no-daemon`
-- Test reports uploaded even on failure (`if: always()`)
-- Golden tests appear as skipped (not failed) when no API key is present
-- No secrets required
-
-**Validation:** Push to GitHub and verify workflow runs. Confirm golden tests show as skipped, not failed.
+`.github/workflows/ci.yml` created. Triggers on push/PR to main. Job `build-and-test` with Temurin 21, Gradle cache, build+lint+upload. Build+lint pass.
 
 ---
 
