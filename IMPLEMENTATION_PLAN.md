@@ -40,44 +40,9 @@ Phase 16.2 done: `previousBreakdown: RevenueBreakdown?` added to `GetRevenueResu
 
 ---
 
-### 17.3 Deploy Workflow
+### 17.3 Deploy Workflow — DONE
 
-**Spec:** `specs/ci-cd-spec.md` §4
-
-**What:** Create `.github/workflows/deploy.yml` — deploys to Fly.io production. Two trigger paths: automatic (on CI workflow success on `main`) and manual (with `confirm: 'deploy'` guard). Builds Docker image on Fly.io's remote builders — no Docker setup needed on the runner. Requires `FLY_API_TOKEN` repository secret.
-
-**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
-
-**File:** `.github/workflows/deploy.yml`
-
-**Contents:**
-- `name: Deploy`
-- Triggers:
-  - `workflow_run: workflows: [CI]`, `branches: [main]`, `types: [completed]`
-  - `workflow_dispatch` with required input `confirm` (description: "Type 'deploy' to confirm production deployment")
-- Job: `deploy`
-- Job-level `if` condition:
-  ```
-  (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-  || (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'deploy')
-  ```
-- Environment variable: `FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}`
-- Steps:
-  1. `actions/checkout@v4`
-  2. `superfly/flyctl-actions/setup-flyctl@master`
-  3. `flyctl deploy --remote-only`
-  4. `flyctl status --app mona-late-tree-7299` (health check — verify machine reaches `started` state)
-
-**Acceptance criteria:**
-- Automatic trigger: runs only when CI workflow succeeds on `main` (skips on failure/cancellation)
-- Manual trigger: requires typing `deploy` as confirmation — prevents accidental dispatch
-- `workflow_run.workflows` references `[CI]` which matches the exact `name: CI` in `ci.yml`
-- Uses Fly.io remote builders (`--remote-only`) — no Docker installed on runner
-- Health check verifies app status after deploy
-- `FLY_API_TOKEN` secret is passed as environment variable
-- No Gradle or JDK setup needed (no local build — Docker image built remotely)
-
-**Validation:** Push to GitHub and verify workflow runs. Confirm automatic deploy triggers after CI success on main. Confirm manual deploy rejects when confirmation input is not `deploy`.
+`.github/workflows/deploy.yml` created. Triggers on CI workflow success on `main` (automatic) and `workflow_dispatch` with `confirm: 'deploy'` guard (manual). Uses `superfly/flyctl-actions/setup-flyctl@master`, deploys with `--remote-only`, health check via `flyctl status --app mona-late-tree-7299`. `FLY_API_TOKEN` passed as env var from secrets.
 
 ---
 
