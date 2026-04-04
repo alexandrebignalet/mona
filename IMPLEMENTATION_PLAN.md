@@ -20,36 +20,7 @@ Phase 15.3 done: ExportGdprData use case, export_data tool, ExportData ParsedAct
 
 ## Phase 16: Revenue Polish
 
-### 16.1 Revenue Period Label Fix
-
-**Spec:** §6 ("Ce mois : 3 200 EUR encaissés sur 4 factures.")
-
-**What:** Fix `handleGetRevenue` in `MessageRouter` (lines 612-639) to use human-readable French period labels instead of raw year numbers. Currently line 628 formats as `"$year : $total encaissé..."`. The `periodType` and the constructed `period` are already available in `handleGetRevenue` but not passed through to `GetRevenueResult` or used for labeling.
-
-**Layers:**
-
-- **`application/revenue/GetRevenue.kt`** — Add `periodType: String` field to `GetRevenueCommand`. Add `period: DeclarationPeriod` field to `GetRevenueResult` — `period` is already available inside `execute()` from `command.period`, it just needs to be included in the returned result. No logic change needed in `execute()`.
-- **`application/MessageRouter.kt`** — Pass `action.periodType` into `GetRevenueCommand`. Add private `formatPeriodLabel(periodType: String, period: DeclarationPeriod): String` function using `java.time.LocalDate.now()` for "current" comparisons and `java.time.format.TextStyle.FULL` with `Locale.FRENCH` for month names. Replace `"$year : ..."` on line 628 with `"${formatPeriodLabel(...)} : ..."`.
-
-**Target behavior:**
-- `periodType == "month"` + current month → "Ce mois"
-- `periodType == "month"` + past month → "Mars 2026" (month name capitalized + year)
-- `periodType == "quarter"` + current quarter → "Ce trimestre"
-- `periodType == "quarter"` + past quarter → "T1 2026"
-- `periodType == "year"` + current year → "Cette année"
-- `periodType == "year"` + past year → just the year number
-
-**Acceptance criteria:**
-- Monthly revenue query for current month shows "Ce mois : ..."
-- Monthly query for a past month shows "Février 2026 : ..."
-- Quarterly query for current quarter shows "Ce trimestre : ..."
-- Yearly query shows "Cette année : ..." or just the year
-
-**Tests:** MessageRouter tests for each periodType variant (current + past)
-
-**Validation:** `./gradlew build && ./gradlew ktlintCheck`
-
----
+Phase 16.1 done: added `periodType`/`period` to `GetRevenueCommand`/`GetRevenueResult`, added `formatPeriodLabel` to `MessageRouter` (Ce mois / Janvier 2020 / Ce trimestre / T3 2020 / Cette année / 2020). 6 MessageRouter tests added. Build + lint pass.
 
 ### 16.2 Revenue Comparison to Previous Period
 

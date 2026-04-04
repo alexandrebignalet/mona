@@ -11,6 +11,7 @@ import mona.domain.service.RevenueCalculation
 data class GetRevenueCommand(
     val userId: UserId,
     val period: DeclarationPeriod,
+    val periodType: String,
 )
 
 data class GetRevenueResult(
@@ -18,6 +19,8 @@ data class GetRevenueResult(
     val paidCount: Int,
     val pendingCount: Int,
     val pendingAmount: Cents,
+    val period: DeclarationPeriod,
+    val periodType: String,
 )
 
 class GetRevenue(
@@ -38,6 +41,8 @@ class GetRevenue(
             paidCount = paidSnapshots.size,
             pendingCount = pending.size,
             pendingAmount = pendingAmount,
+            period = command.period,
+            periodType = command.periodType,
         )
     }
 }

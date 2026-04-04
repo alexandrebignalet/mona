@@ -1487,4 +1487,168 @@ class MessageRouterTest {
             assertTrue(docNames.any { it == "F-2026-03-001.pdf" }, "Expected invoice PDF")
             assertTrue(docNames.any { it == "mona-profil.json" }, "Expected profile JSON")
         }
+
+    // --- Revenue period label tests ---
+
+    @Test
+    fun `get_revenue for current month shows Ce mois label`() =
+        runBlocking {
+            val today = LocalDate.now()
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson =
+                                """{"period_type":"month","year":${today.year},"month":${today.monthValue},"quarter":null}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA ce mois", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("Ce mois :"), "Expected 'Ce mois :' label, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue for past month shows capitalized month name and year`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"month","year":2020,"month":1,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA janvier 2020", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("Janvier 2020 :"), "Expected 'Janvier 2020 :' label, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue for current quarter shows Ce trimestre label`() =
+        runBlocking {
+            val today = LocalDate.now()
+            val currentQuarter = (today.monthValue - 1) / 3 + 1
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson =
+                                """{"period_type":"quarter","year":${today.year},"month":null,"quarter":$currentQuarter}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA ce trimestre", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("Ce trimestre :"), "Expected 'Ce trimestre :' label, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue for past quarter shows T-number and year label`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"quarter","year":2020,"month":null,"quarter":3}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA T3 2020", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("T3 2020 :"), "Expected 'T3 2020 :' label, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue for current year shows Cette annee label`() =
+        runBlocking {
+            val today = LocalDate.now()
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"year","year":${today.year},"month":null,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA cette année", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("Cette année :"), "Expected 'Cette année :' label, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue for past year shows just the year`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"year","year":2020,"month":null,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA 2020", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.startsWith("2020 :"), "Expected '2020 :' label, got: $msg")
+        }
 }

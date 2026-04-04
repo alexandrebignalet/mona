@@ -74,6 +74,8 @@ import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -658,11 +660,12 @@ class MessageRouter(
                 "quarter" -> DeclarationPeriod.quarterly(year, action.quarter ?: ((today.monthValue - 1) / 3 + 1))
                 else -> DeclarationPeriod(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31))
             }
-        val result = getRevenue.execute(GetRevenueCommand(user.id, period))
+        val result = getRevenue.execute(GetRevenueCommand(user.id, period, action.periodType))
         val total = formatCents(result.breakdown.total)
         val paidSuffix = if (result.paidCount == 1) "" else "s"
         val lines = mutableListOf<String>()
-        lines += "$year : $total encaissé sur ${result.paidCount} facture$paidSuffix."
+        val label = formatPeriodLabel(result.periodType, result.period)
+        lines += "$label : $total encaissé sur ${result.paidCount} facture$paidSuffix."
         if (result.pendingCount > 0) {
             val pendingSuffix = if (result.pendingCount == 1) "" else "s"
             lines += "${result.pendingCount} facture$pendingSuffix en attente (${formatCents(result.pendingAmount)})."
@@ -987,6 +990,35 @@ class MessageRouter(
         val centsPart = abs % 100
         val prefix = if (v < 0) "-" else ""
         return if (centsPart == 0L) "$prefix$euros€" else "$prefix$euros,${centsPart.toString().padStart(2, '0')}€"
+    }
+
+    private fun formatPeriodLabel(
+        periodType: String,
+        period: DeclarationPeriod,
+    ): String {
+        val today = LocalDate.now()
+        return when (periodType) {
+            "month" -> {
+                val isCurrent = period.start.year == today.year && period.start.monthValue == today.monthValue
+                if (isCurrent) {
+                    "Ce mois"
+                } else {
+                    val monthName =
+                        period.start.month.getDisplayName(TextStyle.FULL, Locale.FRENCH)
+                            .replaceFirstChar { it.uppercase() }
+                    "$monthName ${period.start.year}"
+                }
+            }
+            "quarter" -> {
+                val quarter = (period.start.monthValue - 1) / 3 + 1
+                val todayQuarter = (today.monthValue - 1) / 3 + 1
+                val isCurrent = period.start.year == today.year && quarter == todayQuarter
+                if (isCurrent) "Ce trimestre" else "T$quarter ${period.start.year}"
+            }
+            else -> {
+                if (period.start.year == today.year) "Cette année" else period.start.year.toString()
+            }
+        }
     }
 
     private fun activityTypeLabel(type: ActivityType): String =

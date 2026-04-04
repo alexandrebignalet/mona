@@ -116,7 +116,7 @@ class GetRevenueTest {
                     PaidInvoiceSnapshot(InvoiceId("i2"), Cents(120000), LocalDate.of(2026, 3, 15), ActivityType.BNC),
                 )
             val repo = StubInvoiceRepoRevenue(paidSnapshots = snapshots)
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(Cents(200000), result.breakdown.total)
             assertEquals(Cents(200000), result.breakdown.byActivity[ActivityType.BNC])
@@ -131,7 +131,7 @@ class GetRevenueTest {
                     PaidInvoiceSnapshot(InvoiceId("i2"), Cents(50000), LocalDate.of(2026, 3, 20), ActivityType.BIC_SERVICE),
                 )
             val repo = StubInvoiceRepoRevenue(paidSnapshots = snapshots)
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(2, result.paidCount)
         }
@@ -142,7 +142,7 @@ class GetRevenueTest {
             val sent = listOf(makeInvoice("1", InvoiceStatus.Sent), makeInvoice("2", InvoiceStatus.Sent))
             val overdue = listOf(makeInvoice("3", InvoiceStatus.Overdue))
             val repo = StubInvoiceRepoRevenue(sentInvoices = sent, overdueInvoices = overdue)
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(3, result.pendingCount)
         }
@@ -153,7 +153,7 @@ class GetRevenueTest {
             val sent = listOf(makeInvoice("1", InvoiceStatus.Sent, amountCents = 80000))
             val overdue = listOf(makeInvoice("2", InvoiceStatus.Overdue, amountCents = 60000))
             val repo = StubInvoiceRepoRevenue(sentInvoices = sent, overdueInvoices = overdue)
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(Cents(140000), result.pendingAmount)
         }
@@ -162,7 +162,7 @@ class GetRevenueTest {
     fun `returns zero breakdown when no paid invoices`() =
         runBlocking {
             val repo = StubInvoiceRepoRevenue()
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(Cents(0), result.breakdown.total)
             assertEquals(0, result.paidCount)
@@ -185,7 +185,7 @@ class GetRevenueTest {
                     ),
                 )
             val repo = StubInvoiceRepoRevenue(paidSnapshots = snapshots, creditSnapshots = credits)
-            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD))
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(Cents(20000), result.breakdown.total)
         }
