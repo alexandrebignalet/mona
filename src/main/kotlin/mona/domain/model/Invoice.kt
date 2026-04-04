@@ -5,8 +5,8 @@ import java.time.LocalDate
 
 data class Invoice(
     val id: InvoiceId,
-    val userId: UserId,
-    val clientId: ClientId,
+    val userId: UserId?,
+    val clientId: ClientId?,
     val number: InvoiceNumber,
     val status: InvoiceStatus,
     val issueDate: LocalDate,
@@ -23,11 +23,13 @@ data class Invoice(
     /** DRAFT -> SENT */
     fun send(now: Instant): DomainResult<TransitionResult> {
         if (status !is InvoiceStatus.Draft) return invalidTransition("Sent")
+        val uid = userId ?: return invalidTransition("Sent")
+        val cid = clientId ?: return invalidTransition("Sent")
         val updated = copy(status = InvoiceStatus.Sent)
         return DomainResult.Ok(
             TransitionResult(
                 updated,
-                listOf(DomainEvent.InvoiceSent(id, number, clientId, userId, now)),
+                listOf(DomainEvent.InvoiceSent(id, number, cid, uid, now)),
             ),
         )
     }
@@ -40,6 +42,7 @@ data class Invoice(
     ): DomainResult<TransitionResult> =
         when (status) {
             is InvoiceStatus.Draft, is InvoiceStatus.Sent, is InvoiceStatus.Overdue -> {
+                val uid = userId ?: return invalidTransition("Paid")
                 val updated = copy(status = InvoiceStatus.Paid(date, method))
                 DomainResult.Ok(
                     TransitionResult(
@@ -52,7 +55,7 @@ data class Invoice(
                                 date,
                                 method,
                                 activityType,
-                                userId,
+                                uid,
                                 now,
                             ),
                         ),
@@ -71,18 +74,19 @@ data class Invoice(
     /** SENT -> OVERDUE */
     fun markOverdue(now: Instant): DomainResult<TransitionResult> {
         if (status !is InvoiceStatus.Sent) return invalidTransition("Overdue")
+        val uid = userId ?: return invalidTransition("Overdue")
         val updated = copy(status = InvoiceStatus.Overdue)
         return DomainResult.Ok(
             TransitionResult(
                 updated,
-                listOf(DomainEvent.InvoiceOverdue(id, number, dueDate, userId, now)),
+                listOf(DomainEvent.InvoiceOverdue(id, number, dueDate, uid, now)),
             ),
         )
     }
 
     /** Updates mutable fields on a DRAFT invoice; status stays Draft. */
     fun updateDraft(
-        clientId: ClientId = this.clientId,
+        clientId: ClientId? = this.clientId,
         lineItems: List<LineItem> = this.lineItems,
         issueDate: LocalDate = this.issueDate,
         paymentDelay: PaymentDelayDays? = null,
@@ -113,11 +117,12 @@ data class Invoice(
     ): DomainResult<TransitionResult> =
         when {
             status is InvoiceStatus.Draft -> {
+                val uid = userId ?: return invalidTransition("Cancelled")
                 val updated = copy(status = InvoiceStatus.Cancelled)
                 DomainResult.Ok(
                     TransitionResult(
                         updated,
-                        listOf(DomainEvent.DraftDeleted(id, number, userId, now)),
+                        listOf(DomainEvent.DraftDeleted(id, number, uid, now)),
                     ),
                 )
             }
@@ -126,11 +131,12 @@ data class Invoice(
                     status is InvoiceStatus.Overdue ||
                     status is InvoiceStatus.Paid
             ) && creditNote != null -> {
+                val uid = userId ?: return invalidTransition("Cancelled")
                 val updated = copy(status = InvoiceStatus.Cancelled, creditNote = creditNote)
                 DomainResult.Ok(
                     TransitionResult(
                         updated,
-                        listOf(DomainEvent.InvoiceCancelled(id, number, creditNote, userId, now)),
+                        listOf(DomainEvent.InvoiceCancelled(id, number, creditNote, uid, now)),
                     ),
                 )
             }

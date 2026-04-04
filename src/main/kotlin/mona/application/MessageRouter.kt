@@ -481,7 +481,7 @@ class MessageRouter(
         return when (val result = sendInvoice.execute(SendInvoiceCommand(user.id, invoice.id, plainIban))) {
             is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
             is DomainResult.Ok -> {
-                val client = clientRepository.findById(result.value.invoice.clientId)
+                val client = result.value.invoice.clientId?.let { clientRepository.findById(it) }
                 val emailStr = client?.email?.value ?: ""
                 Pair("Envoyé à $emailStr ✓", emptyList())
             }

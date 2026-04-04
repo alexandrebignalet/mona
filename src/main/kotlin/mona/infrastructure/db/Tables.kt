@@ -41,8 +41,8 @@ object ClientsTable : Table("clients") {
 
 object InvoicesTable : Table("invoices") {
     val id = varchar("id", 36)
-    val userId = varchar("user_id", 36).references(UsersTable.id)
-    val clientId = varchar("client_id", 36).references(ClientsTable.id)
+    val userId = varchar("user_id", 36).references(UsersTable.id).nullable()
+    val clientId = varchar("client_id", 36).references(ClientsTable.id).nullable()
     val invoiceNumber = varchar("invoice_number", 20)
     val status = varchar("status", 20)
     val issueDate = date("issue_date")

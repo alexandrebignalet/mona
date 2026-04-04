@@ -2,6 +2,8 @@
 
 This prompt governs planning. Every "MUST" is a hard gate.
 
+**Core job: compare specs against code, identify every gap, and produce a prioritized implementation plan from that delta.**
+
 ---
 
 ## Phase 0 — Context Loading
@@ -14,13 +16,17 @@ CLAUDE.md is already injected into system context — do not re-read it.
 
 ### 0b. Read IMPLEMENTATION_PLAN.md
 
-Read it to understand the plan so far. It may be outdated — verify against code.
+Read it for context on what has already been completed. **Do not treat it as the source of truth for what remains** — the spec-vs-code diff is authoritative. The plan may be stale or incomplete.
 
-### 0c. Read relevant specs
+### 0c. Read specs (parallel)
 
-List `specs/*` and, based on IMPLEMENTATION_PLAN.md's next priorities, read every spec that is relevant. When in doubt, read it — reading too much is better than missing context. If the plan spans multiple concerns, read all of them.
+List `specs/*` and read all relevant specs using parallel subagents. When in doubt, read it — reading too much is better than missing context.
 
-### 0d. Verify source layout
+### 0d. Study source code (parallel)
+
+Use parallel subagents to study existing source across all architecture layers (domain, application, infrastructure) and tests. Let the subagents discover the file structure — do not hardcode paths.
+
+### 0e. Verify source layout
 
 ```bash
 ls src/main/kotlin/mona/ 2>/dev/null || echo "No source yet"
@@ -28,7 +34,7 @@ ls src/main/kotlin/mona/ 2>/dev/null || echo "No source yet"
 
 If layout contradicts CLAUDE.md, document as the first plan item.
 
-### 0e. Verify validation toolchain (skip if recently confirmed passing)
+### 0f. Verify validation toolchain (skip if recently confirmed passing)
 
 Only run if there is reason to suspect the toolchain is broken:
 
@@ -40,26 +46,52 @@ If any command is missing or fails, add a plan item to fix it first.
 
 ---
 
-## Phase 1 — Research Existing Code
+## Phase 1 — Spec-vs-Code Diff
 
 **Ultrathink** before beginning research.
 
-Use parallel Read/Grep/Glob calls to study existing source code relevant to incomplete plan items.
-Use an Explore subagent only when the scope is genuinely open-ended (e.g. "find all places that touch invoice status") and you cannot name the target files up front.
+This is the core planning activity. For each spec, systematically compare what the spec requires against what the code implements. **The gap is the plan.**
 
-For each area studied, verify:
+Use parallel subagents to search the codebase. Use Explore subagents only when scope is genuinely open-ended and you cannot name the target files up front.
+
+### 1a. Find unimplemented features
+
+For each feature, flow, or rule described in specs:
+
+- Does corresponding code exist? (use case, domain logic, handler, adapter)
+- Is it complete or only partially stubbed?
+- Are there spec-described flows with no corresponding use case or handler?
+- Are there domain rules in the spec not enforced in code?
+
+**Do not assume functionality is missing — confirm with code search.** Equally, do not assume it exists just because a file is named correctly — read the implementation.
+
+### 1b. Find flagged gaps
+
+Search for work the developers already marked:
+
+- TODO / FIXME / HACK comments
+- Placeholder or minimal implementations
+- Skipped or flaky tests
+- Inconsistent patterns across modules
+- Dead code or unused stubs
+
+### 1c. Compliance audit
+
+For each area of existing code, verify:
 
 1. **Architecture layer compliance** — code in the correct layer per CLAUDE.md?
 2. **Tech stack compliance** — only approved dependencies?
 3. **Kotlin strictness** — no `Any`, no unchecked casts, value classes used for domain concepts?
 4. **Domain purity** — domain/ has zero framework imports?
-5. **Completeness** — TODOs, placeholders, skipped tests, stubs?
+5. **Duplicated logic** — same concern implemented in multiple places instead of consolidated?
 
 ---
 
 ## Phase 2 — Produce the Plan
 
-Use an **Opus subagent with ultrathink** to analyze findings and update @IMPLEMENTATION_PLAN.md.
+Use an **Opus subagent with ultrathink** to synthesize all findings and update @IMPLEMENTATION_PLAN.md.
+
+The plan is rebuilt from evidence (Phase 1 findings), not incrementally patched from the previous plan. Completed items are removed. New gaps are added.
 
 ### Compliance gate (BLOCKING)
 
@@ -84,8 +116,6 @@ For each plan item that touches LLM integration or adds a new user action, inclu
 - [ ] Golden tests: <what to add/update> (parsing cases / context resolution / edge cases)
 ```
 
-This ensures LLM test coverage is planned alongside the feature, not forgotten.
-
 ### If a new spec is needed
 
 Search first to confirm it doesn't exist, then author at `specs/FILENAME.md`. Document the plan in @IMPLEMENTATION_PLAN.md.
@@ -105,11 +135,23 @@ git add -A && git commit -m "<description>" && git push
 ## Rules
 
 - **Plan only.** Do NOT implement or modify source code.
-- **Do not assume functionality is missing.** Verify with code search.
-- **CLAUDE.md is authoritative.** Plan fixes for violations.
+- **Specs are authoritative.** The spec-vs-code delta defines the work.
+- **CLAUDE.md is authoritative for architecture.** Plan fixes for violations.
+- **Do not assume.** Verify presence AND completeness with code search.
 - **File paths must match the architecture structure.**
 - **Clean out completed items** from IMPLEMENTATION_PLAN.md to keep it lean.
-- **Prune prevention rules** that are now encoded in code or tests (e.g., a test guards against the failure, or the code structure prevents it). Rules should trend toward empty, not accumulate.
+- **Prune prevention rules** that are now encoded in code or tests.
+
+---
+
+## Subagent Strategy
+
+| Task | Agent | Why |
+|------|-------|-----|
+| Reading specs (Phase 0c) | Parallel Sonnet/Explore | Fast, parallelizable reads |
+| Studying source (Phase 0d) | Parallel Sonnet/Explore | Fast, parallelizable reads |
+| Searching for gaps (Phase 1) | Parallel Sonnet/Explore | Independent per-spec searches |
+| Synthesizing plan (Phase 2) | Single Opus with ultrathink | Requires judgment and prioritization |
 
 ---
 
@@ -117,4 +159,4 @@ git add -A && git commit -m "<description>" && git push
 
 1. Before beginning code research (Phase 1).
 2. Inside the Opus subagent that produces the plan (Phase 2).
-3. Before resolving any discrepancy between CLAUDE.md and the codebase.
+3. Before resolving any discrepancy between spec and codebase.

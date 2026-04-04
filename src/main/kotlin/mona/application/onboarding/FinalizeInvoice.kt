@@ -34,9 +34,11 @@ class FinalizeInvoice(
             invoiceRepository.findById(command.invoiceId)
                 ?: return DomainResult.Err(DomainError.InvoiceNotFound(command.invoiceId))
 
+        val invoiceClientId =
+            invoice.clientId ?: return DomainResult.Err(DomainError.ClientNotFound(""))
         val client =
-            clientRepository.findById(invoice.clientId)
-                ?: return DomainResult.Err(DomainError.ClientNotFound(invoice.clientId.value))
+            clientRepository.findById(invoiceClientId)
+                ?: return DomainResult.Err(DomainError.ClientNotFound(invoiceClientId.value))
 
         val pdf =
             when (val r = pdfPort.generateInvoice(invoice, user, client, command.plainIban)) {

@@ -70,9 +70,11 @@ class UpdateDraft(
                 is DomainResult.Ok -> r.value
             }
 
+        val updatedClientId =
+            updated.clientId ?: return DomainResult.Err(DomainError.ClientNotFound(""))
         val client =
-            clientRepository.findById(updated.clientId)
-                ?: return DomainResult.Err(DomainError.ClientNotFound(updated.clientId.value))
+            clientRepository.findById(updatedClientId)
+                ?: return DomainResult.Err(DomainError.ClientNotFound(updatedClientId.value))
 
         val pdf =
             when (val r = pdfPort.generateInvoice(updated, user, client, null)) {

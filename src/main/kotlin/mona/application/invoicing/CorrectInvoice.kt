@@ -56,9 +56,11 @@ class CorrectInvoice(
             invoiceRepository.findById(command.invoiceId)
                 ?: return DomainResult.Err(DomainError.InvoiceNotFound(command.invoiceId))
 
+        val originalClientId =
+            original.clientId ?: return DomainResult.Err(DomainError.ClientNotFound(""))
         val client =
-            clientRepository.findById(original.clientId)
-                ?: return DomainResult.Err(DomainError.ClientNotFound(original.clientId.value))
+            clientRepository.findById(originalClientId)
+                ?: return DomainResult.Err(DomainError.ClientNotFound(originalClientId.value))
 
         val yearMonth = YearMonth.from(command.issueDate)
 
@@ -101,7 +103,7 @@ class CorrectInvoice(
                     Invoice.create(
                         id = newInvoiceId,
                         userId = command.userId,
-                        clientId = original.clientId,
+                        clientId = originalClientId,
                         number = newNumber,
                         issueDate = command.issueDate,
                         paymentDelay =

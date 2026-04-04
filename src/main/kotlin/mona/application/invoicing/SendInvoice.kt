@@ -39,9 +39,11 @@ class SendInvoice(
         val invoice =
             invoiceRepository.findById(command.invoiceId)
                 ?: return DomainResult.Err(DomainError.InvoiceNotFound(command.invoiceId))
+        val invoiceClientId =
+            invoice.clientId ?: return DomainResult.Err(DomainError.ClientNotFound(""))
         val client =
-            clientRepository.findById(invoice.clientId)
-                ?: return DomainResult.Err(DomainError.ClientNotFound(invoice.clientId.value))
+            clientRepository.findById(invoiceClientId)
+                ?: return DomainResult.Err(DomainError.ClientNotFound(invoiceClientId.value))
         if (client.email == null) return DomainResult.Err(DomainError.ProfileIncomplete(listOf("client.email")))
 
         val pdf =

@@ -17,19 +17,20 @@ class PaymentCheckInJob(
         if (invoices.isEmpty()) return
 
         val byUser = invoices.groupBy { it.userId }
-        for ((userId, userInvoices) in byUser) {
+        for ((nullableUserId, userInvoices) in byUser) {
+            val userId = nullableUserId ?: continue
             val clients = clientRepository.findByUser(userId).associateBy { it.id }
             val message =
                 if (userInvoices.size == 1) {
                     val inv = userInvoices.first()
-                    val clientName = clients[inv.clientId]?.name ?: "?"
+                    val clientName = inv.clientId?.let { clients[it] }?.name ?: "?"
                     "La facture ${inv.number.value} de $clientName (${formatCents(inv.amountHt)}) " +
                         "devait être payée hier — c'est fait ?"
                 } else {
                     val sb = StringBuilder()
                     sb.append("${userInvoices.size} factures arrivaient à échéance hier :\n")
                     for (inv in userInvoices) {
-                        val clientName = clients[inv.clientId]?.name ?: "?"
+                        val clientName = inv.clientId?.let { clients[it] }?.name ?: "?"
                         sb.append("→ $clientName — ${formatCents(inv.amountHt)} (${inv.number.value})\n")
                     }
                     sb.append("Lesquels t'ont payé ?")

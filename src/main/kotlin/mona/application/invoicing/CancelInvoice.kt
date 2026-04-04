@@ -46,9 +46,11 @@ class CancelInvoice(
             invoiceRepository.findById(command.invoiceId)
                 ?: return DomainResult.Err(DomainError.InvoiceNotFound(command.invoiceId))
 
+        val invoiceClientId =
+            invoice.clientId ?: return DomainResult.Err(DomainError.ClientNotFound(""))
         val client =
-            clientRepository.findById(invoice.clientId)
-                ?: return DomainResult.Err(DomainError.ClientNotFound(invoice.clientId.value))
+            clientRepository.findById(invoiceClientId)
+                ?: return DomainResult.Err(DomainError.ClientNotFound(invoiceClientId.value))
 
         val yearMonth = YearMonth.from(command.issueDate)
         val lastCnNumber = invoiceRepository.findLastCreditNoteNumberInMonth(command.userId, yearMonth)

@@ -21,8 +21,9 @@ class HandleBouncedEmail(
                     is DomainResult.Ok -> r.value
                 }
             invoiceRepository.save(reverted)
+            val uid = invoice.userId ?: continue
             messagingPort.sendMessage(
-                invoice.userId,
+                uid,
                 "📧 L'email à $recipientEmail pour la facture ${invoiceNumber.value} " +
                     "a échoué — l'adresse est peut-être incorrecte.\n" +
                     "Tu veux me donner une nouvelle adresse pour ce client ?",

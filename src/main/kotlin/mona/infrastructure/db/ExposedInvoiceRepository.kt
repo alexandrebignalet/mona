@@ -65,8 +65,8 @@ class ExposedInvoiceRepository : InvoiceRepository {
             } else {
                 InvoicesTable.insert {
                     it[id] = invoice.id.value
-                    it[userId] = invoice.userId.value
-                    it[clientId] = invoice.clientId.value
+                    it[userId] = invoice.userId?.value
+                    it[clientId] = invoice.clientId?.value
                     it[invoiceNumber] = invoice.number.value
                     it[status] = invoice.status.toDbString()
                     it[issueDate] = invoice.issueDate
@@ -330,8 +330,8 @@ class ExposedInvoiceRepository : InvoiceRepository {
             }
         return Invoice(
             id = InvoiceId(this[InvoicesTable.id]),
-            userId = UserId(this[InvoicesTable.userId]),
-            clientId = ClientId(this[InvoicesTable.clientId]),
+            userId = this[InvoicesTable.userId]?.let { UserId(it) },
+            clientId = this[InvoicesTable.clientId]?.let { ClientId(it) },
             number = InvoiceNumber(this[InvoicesTable.invoiceNumber]),
             status = status,
             issueDate = this[InvoicesTable.issueDate],

@@ -12,34 +12,6 @@ Phases 1.1–14.4 done. See git log for details.
 
 ## Phase 15: GDPR Compliance
 
-### 15.1 Schema Migration for Anonymized Invoice Retention
-
-**Spec:** §12 Right to Deletion — "Retains anonymized invoice records for the 10-year legal retention period"
-
-**What:** Invoices, credit notes, and line items must survive user/client deletion. Currently `InvoicesTable.userId` (line 44) and `InvoicesTable.clientId` (line 45) in `Tables.kt` are NOT NULL FK references declared via `.references(...)` with no `.nullable()` and no `ON DELETE` clause. Deleting a User or Client row would violate FK constraints. This step makes those FKs nullable so deletion sets them to NULL (anonymization).
-
-**Layers:**
-
-- **`domain/model/Invoice.kt`** — Change `userId: UserId` to `userId: UserId?` and `clientId: ClientId` to `clientId: ClientId?` in the `Invoice` data class constructor. This is required for reconstitution of anonymized rows. `Invoice.create()` keeps non-null parameters — its signature does not change. All call sites that pattern-match or access `invoice.userId` / `invoice.clientId` must handle nullability.
-- **`infrastructure/db/Tables.kt`** — Add `.nullable()` to `InvoicesTable.userId` and `InvoicesTable.clientId`.
-- **`infrastructure/db/DatabaseFactory.kt`** — Add migration step. SQLite `ALTER TABLE` cannot change column constraints, so use the standard recreate-table pattern: create new invoices table with nullable FKs, copy data, drop old, rename. Currently `DatabaseFactory` uses `SchemaUtils.create(...)` only — add a migration mechanism that runs after `SchemaUtils.create`.
-- **`infrastructure/db/ExposedInvoiceRepository.kt`** — Update `toInvoice()`: currently reads `this[InvoicesTable.userId]` and `this[InvoicesTable.clientId]` as non-nullable — will throw if columns are null. Change to read nullable and map to `UserId?` / `ClientId?`. The queries `findLastNumberInMonth` (filters on `userId eq`) and `findByClientAndAmountSince` (filters on `clientId eq`) remain correct — NULL rows are simply excluded by the `eq` condition.
-
-**Acceptance criteria:**
-- Migration runs on existing database without data loss
-- Invoices with NULL userId/clientId can be read back from the DB and reconstituted as `Invoice` with null fields
-- `Invoice.create()` still requires non-null userId and clientId
-- All existing tests pass after migration
-- FK constraints still enforced for non-NULL references
-
-**Tests:**
-- Migration test: insert data, run migration, verify data integrity
-- Repository test: verify invoices with NULL FKs load correctly as `Invoice` with null userId/clientId
-
-**Validation:** `./gradlew build && ./gradlew ktlintCheck`
-
----
-
 ### 15.2 GDPR Account Deletion
 
 **Spec:** §12 Right to Deletion
