@@ -179,6 +179,120 @@ Phases 1.1–14.4 done. See git log for details.
 
 ---
 
+## Phase 17: CI/CD Pipelines
+
+### 17.1 CI Workflow
+
+**Spec:** `specs/ci-cd-spec.md` §2
+
+**What:** Create `.github/workflows/ci.yml` — the main build-test-lint pipeline that runs on every push to `main` and every PR targeting `main`. This workflow gates merges. Golden tests skip gracefully via `Assumptions.assumeTrue` when `ANTHROPIC_API_KEY` is absent (reported as skipped, not failed). No secrets required.
+
+**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
+
+**File:** `.github/workflows/ci.yml`
+
+**Contents:**
+- `name: CI` (exact name — deploy workflow references this via `workflow_run.workflows: [CI]`)
+- Trigger: `on: push: branches: [main]` and `pull_request: branches: [main]`
+- Runner: `ubuntu-latest`
+- Job: `build-and-test`
+- Steps:
+  1. `actions/checkout@v4`
+  2. `actions/setup-java@v4` with `distribution: temurin`, `java-version: '21'`
+  3. `actions/cache@v4` with paths `~/.gradle/caches` and `~/.gradle/wrapper`, key based on `hashFiles('**/*.gradle.kts')`
+  4. `./gradlew build --no-daemon`
+  5. `./gradlew ktlintCheck --no-daemon`
+  6. `actions/upload-artifact@v4` uploading `build/reports/tests/` with `if: always()`
+
+**Acceptance criteria:**
+- Workflow triggers on push to main and on PRs to main
+- `name:` field is exactly `CI` (must match deploy workflow's `workflow_run.workflows` reference)
+- JDK is Temurin 21
+- Gradle caches are restored and saved between runs
+- Build and lint steps use `--no-daemon`
+- Test reports uploaded even on failure (`if: always()`)
+- Golden tests appear as skipped (not failed) when no API key is present
+- No secrets required
+
+**Validation:** Push to GitHub and verify workflow runs. Confirm golden tests show as skipped, not failed.
+
+---
+
+### 17.2 Golden Tests Workflow
+
+**Spec:** `specs/ci-cd-spec.md` §3
+
+**What:** Create `.github/workflows/golden-tests.yml` — a manual-only workflow for running LLM golden tests against the real Claude API. Supports optional category filtering. Requires `ANTHROPIC_API_KEY` repository secret.
+
+**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
+
+**File:** `.github/workflows/golden-tests.yml`
+
+**Contents:**
+- `name: Golden Tests`
+- Trigger: `workflow_dispatch` with optional `categories` input (string, default `""`, description: "Comma-separated golden test categories (blank = all)")
+- Runner: `ubuntu-latest`
+- Job: `golden-tests`
+- Environment variable: `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`
+- Steps:
+  1. `actions/checkout@v4`
+  2. `actions/setup-java@v4` with `distribution: temurin`, `java-version: '21'`
+  3. `actions/cache@v4` (same Gradle cache config as CI)
+  4. Run golden tests: `./gradlew test --tests "*.GoldenParsingTest" --tests "*.GoldenContextTest" --no-daemon` — when `inputs.categories` is non-empty, append `-Dgolden.categories=${{ inputs.categories }}`
+  5. `actions/upload-artifact@v4` uploading `build/reports/tests/` with `if: always()`
+
+**Acceptance criteria:**
+- Workflow only triggers manually (no push/PR trigger)
+- Optional `categories` input filters test execution when provided
+- `ANTHROPIC_API_KEY` secret is passed as environment variable
+- Test reports uploaded even on failure
+- All Gradle invocations use `--no-daemon`
+
+**Validation:** Trigger manually from GitHub Actions UI. Confirm golden tests execute against real API. Confirm category filtering works when input is provided.
+
+---
+
+### 17.3 Deploy Workflow
+
+**Spec:** `specs/ci-cd-spec.md` §4
+
+**What:** Create `.github/workflows/deploy.yml` — deploys to Fly.io production. Two trigger paths: automatic (on CI workflow success on `main`) and manual (with `confirm: 'deploy'` guard). Builds Docker image on Fly.io's remote builders — no Docker setup needed on the runner. Requires `FLY_API_TOKEN` repository secret.
+
+**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
+
+**File:** `.github/workflows/deploy.yml`
+
+**Contents:**
+- `name: Deploy`
+- Triggers:
+  - `workflow_run: workflows: [CI]`, `branches: [main]`, `types: [completed]`
+  - `workflow_dispatch` with required input `confirm` (description: "Type 'deploy' to confirm production deployment")
+- Job: `deploy`
+- Job-level `if` condition:
+  ```
+  (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+  || (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'deploy')
+  ```
+- Environment variable: `FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}`
+- Steps:
+  1. `actions/checkout@v4`
+  2. `superfly/flyctl-actions/setup-flyctl@master`
+  3. `flyctl deploy --remote-only`
+  4. `flyctl status --app mona-late-tree-7299` (health check — verify machine reaches `started` state)
+
+**Acceptance criteria:**
+- Automatic trigger: runs only when CI workflow succeeds on `main` (skips on failure/cancellation)
+- Manual trigger: requires typing `deploy` as confirmation — prevents accidental dispatch
+- `workflow_run.workflows` references `[CI]` which matches the exact `name: CI` in `ci.yml`
+- Uses Fly.io remote builders (`--remote-only`) — no Docker installed on runner
+- Health check verifies app status after deploy
+- `FLY_API_TOKEN` secret is passed as environment variable
+- No Gradle or JDK setup needed (no local build — Docker image built remotely)
+
+**Validation:** Push to GitHub and verify workflow runs. Confirm automatic deploy triggers after CI success on main. Confirm manual deploy rejects when confirmation input is not `deploy`.
+
+---
+
 ## Prevention Rules
 
 These rules are accumulated from implementation experience. Initially seeded from specs.
