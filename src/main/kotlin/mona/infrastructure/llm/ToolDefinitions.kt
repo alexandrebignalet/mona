@@ -333,6 +333,15 @@ object ToolDefinitions {
             inputSchemaJson = """{"type": "object", "properties": {}}""",
         )
 
+    private val exportDataTool =
+        LlmToolDefinition(
+            name = "export_data",
+            description =
+                "Exporter toutes les donnees personnelles (RGPD): CSV des factures, PDFs, profil JSON. " +
+                    "Utiliser quand l'utilisateur demande un export RGPD ou de telecharger ses donnees.",
+            inputSchemaJson = """{"type": "object", "properties": {}}""",
+        )
+
     private val conversationalTool =
         LlmToolDefinition(
             name = "conversational",
@@ -387,6 +396,7 @@ object ToolDefinitions {
             listClientsTool,
             clientHistoryTool,
             deleteAccountTool,
+            exportDataTool,
             conversationalTool,
             unknownTool,
         )

@@ -119,6 +119,8 @@ sealed class ParsedAction {
 
     data object DeleteAccount : ParsedAction()
 
+    data object ExportData : ParsedAction()
+
     data class Conversational(
         val response: String,
     ) : ParsedAction()
@@ -154,6 +156,7 @@ object ActionParser {
             "list_clients" -> ParsedAction.ListClients
             "client_history" -> ParsedAction.ClientHistory(obj.str("client_name"))
             "delete_account" -> ParsedAction.DeleteAccount
+            "export_data" -> ParsedAction.ExportData
             "conversational" -> ParsedAction.Conversational(obj.str("response"))
             "unknown" -> ParsedAction.Unknown(obj.str("clarification"))
             else -> ParsedAction.Unknown("Action non reconnue : $toolName")

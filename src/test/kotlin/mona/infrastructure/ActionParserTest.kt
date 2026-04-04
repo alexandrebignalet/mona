@@ -349,8 +349,8 @@ class ActionParserTest {
     // --- ToolDefinitions ---
 
     @Test
-    fun `ToolDefinitions contains exactly 19 tools`() {
-        assertEquals(19, ToolDefinitions.all.size)
+    fun `ToolDefinitions contains exactly 20 tools`() {
+        assertEquals(20, ToolDefinitions.all.size)
     }
 
     @Test
@@ -363,7 +363,7 @@ class ActionParserTest {
     }
 
     @Test
-    fun `all 19 action tool names are present`() {
+    fun `all 20 action tool names are present`() {
         val names = ToolDefinitions.all.map(LlmToolDefinition::name).toSet()
         val expected =
             setOf(
@@ -384,6 +384,7 @@ class ActionParserTest {
                 "list_clients",
                 "client_history",
                 "delete_account",
+                "export_data",
                 "conversational",
                 "unknown",
             )

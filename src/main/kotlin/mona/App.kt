@@ -15,6 +15,7 @@ import mona.application.client.GetClientHistory
 import mona.application.client.ListClients
 import mona.application.client.UpdateClient
 import mona.application.gdpr.DeleteAccount
+import mona.application.gdpr.ExportGdprData
 import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CorrectInvoice
 import mona.application.invoicing.CreateInvoice
@@ -121,6 +122,7 @@ fun main() {
     val finalizeInvoice = FinalizeInvoice(userRepository, clientRepository, invoiceRepository, pdfPort)
     val configureSetting = ConfigureSetting(userRepository)
     val deleteAccount = DeleteAccount(userRepository, clientRepository, conversationRepository, invoiceRepository)
+    val exportGdprData = ExportGdprData(userRepository, invoiceRepository, clientRepository, exportCsv, pdfPort, cryptoAdapter)
     val checkVatThreshold = CheckVatThreshold(invoiceRepository, vatAlertRepository, telegramAdapter)
 
     // Register event handlers
@@ -238,6 +240,7 @@ fun main() {
             getClientHistory = getClientHistory,
             configureSetting = configureSetting,
             deleteAccount = deleteAccount,
+            exportGdprData = exportGdprData,
         )
 
     // Track users whose persistent menu has been initialized this session

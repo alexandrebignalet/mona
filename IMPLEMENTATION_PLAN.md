@@ -14,38 +14,7 @@ Phases 1.1–14.4 done. See git log for details.
 
 Implemented: ports (UserRepository.delete, ClientRepository.deleteByUser, ConversationRepository.deleteByUser, InvoiceRepository.anonymizeByUser), all Exposed impls, DeleteAccount use case, delete_account tool, ActionParser mapping, MessageRouter confirm/cancel flow with pendingDeletionSet. Tests: confirm path, cancel path, confirmation prompt. Golden tests added.
 
----
-
-### 15.3 GDPR Data Export (PDFs + Profile JSON)
-
-**Spec:** §12 Data Export
-
-**What:** Allow a user to export all their data via chat. Sends: CSV of all invoices, all invoice and credit note PDFs, and a profile JSON file.
-
-**Layers:**
-
-- **`application/gdpr/ExportGdprData.kt`** (new) — Use case. Dependencies: `InvoiceRepository`, `ClientRepository`, `UserRepository`, `ExportInvoicesCsv` (already exists at `application/revenue/ExportInvoicesCsv.kt`), `PdfPort`, `CryptoPort` (to decrypt IBAN for PDF generation). Steps: (a) delegate to `ExportInvoicesCsv` for the CSV, (b) load all non-draft invoices with their clients, regenerate each PDF via `PdfPort.generateInvoice(invoice, user, client, plainIban)` which returns `DomainResult<ByteArray>`, (c) for cancelled invoices with credit notes, generate credit note PDFs via `PdfPort.generateCreditNote(creditNote, originalInvoiceNumber, user, client, plainIban)`, (d) serialize user profile to JSON (name, email, activityType, SIREN, SIRET, address, declarationPeriodicity, defaultPaymentDelay; IBAN presence as `"iban_enregistre": true/false`, never the raw value).
-- **`infrastructure/llm/ActionTypes.kt`** — Add `data object ExportData : ParsedAction()` to sealed class.
-- **`infrastructure/llm/ToolDefinitions.kt`** — Add `export_data` tool (no parameters). Add to `all` list.
-- **`infrastructure/llm/ActionParser.kt`** — Map `"export_data"` tool call to `ParsedAction.ExportData`.
-- **`application/MessageRouter.kt`** — Add `is ParsedAction.ExportData -> handleExportData(user)` to `handleAction`. `handleExportData`: calls `ExportGdprData`, sends summary text message with counts, then CSV file, then each PDF, then profile JSON as documents via `MessagingPort.sendDocument(userId, fileBytes, fileName, caption)`.
-
-**Important:** `PdfPort.generateInvoice` requires `User`, `Client`, and `plainIban`. Load client per invoice via clientId. This path runs only for active (non-deleted) users, so clients should always exist. `ExportInvoicesCsv` already handles nullable clientId gracefully (`clients[invoice.clientId]?.name ?: ""`).
-
-**Acceptance criteria:**
-- User says "exporte mes données" and receives: summary message + CSV + all invoice PDFs + all credit note PDFs + profile JSON
-- Profile JSON contains all profile fields + IBAN presence indicator (never raw IBAN)
-- Each PDF filename matches the invoice/credit note number
-- Summary message states counts before files are sent
-- Works for a user with zero invoices (sends profile JSON + empty CSV only)
-
-**Golden tests:** Add `export_data` entries to `src/test/resources/golden/parsing_cases.json` covering: "exporte mes données", "je veux télécharger toutes mes données", "export RGPD"
-
-**Tests:**
-- `ExportGdprDataTest` — verifies CSV, PDFs, and JSON generated with correct content
-- MessageRouter test: verifies all documents sent in correct order
-
-**Validation:** `./gradlew build && ./gradlew ktlintCheck`
+Phase 15.3 done: ExportGdprData use case, export_data tool, ExportData ParsedAction, MessageRouter handleExportData, 4 unit tests, 2 MessageRouter tests, 3 golden test cases. Build + lint pass.
 
 ---
 

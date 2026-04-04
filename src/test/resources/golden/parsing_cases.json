@@ -657,5 +657,32 @@
     "userMessage": "efface tout",
     "expectedTool": "delete_account",
     "expectedParams": {}
+  },
+  {
+    "id": "export_data_01",
+    "category": "export_data",
+    "description": "Export RGPD en francais courant",
+    "conversationHistory": [],
+    "userMessage": "exporte mes données",
+    "expectedTool": "export_data",
+    "expectedParams": {}
+  },
+  {
+    "id": "export_data_02",
+    "category": "export_data",
+    "description": "Demande de telechargement de toutes les donnees",
+    "conversationHistory": [],
+    "userMessage": "je veux télécharger toutes mes données",
+    "expectedTool": "export_data",
+    "expectedParams": {}
+  },
+  {
+    "id": "export_data_03",
+    "category": "export_data",
+    "description": "Export RGPD explicite",
+    "conversationHistory": [],
+    "userMessage": "export RGPD",
+    "expectedTool": "export_data",
+    "expectedParams": {}
   }
 ]

@@ -9,6 +9,7 @@ import mona.application.client.UpdateClient
 import mona.application.client.UpdateClientCommand
 import mona.application.client.UpdateClientResult
 import mona.application.gdpr.DeleteAccount
+import mona.application.gdpr.ExportGdprData
 import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CancelInvoiceCommand
 import mona.application.invoicing.CorrectInvoice
@@ -119,6 +120,7 @@ class MessageRouter(
     private val getClientHistory: GetClientHistory,
     private val configureSetting: mona.application.settings.ConfigureSetting,
     private val deleteAccount: DeleteAccount,
+    private val exportGdprData: ExportGdprData,
 ) {
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
@@ -407,6 +409,7 @@ class MessageRouter(
                 is ParsedAction.ListClients -> handleListClients(user)
                 is ParsedAction.ClientHistory -> handleClientHistory(user, action)
                 is ParsedAction.DeleteAccount -> handleDeleteAccount(user)
+                is ParsedAction.ExportData -> handleExportData(user)
             }
         } catch (e: Exception) {
             Pair("J'ai eu un problème inattendu — réessaie dans un instant.", emptyList())
@@ -895,6 +898,27 @@ class MessageRouter(
             "Tu es sûr·e ? Cette action est irréversible — toutes tes données seront effacées.",
             emptyList(),
         )
+    }
+
+    private suspend fun handleExportData(user: User): RouteResult {
+        val result = exportGdprData.execute(user.id)
+        val invoiceCount = result.invoicePdfs.size
+        val creditNoteCount = result.creditNotePdfs.size
+        val lines = mutableListOf<String>()
+        lines += "Export RGPD prêt ✓"
+        lines += "→ $invoiceCount facture${if (invoiceCount != 1) "s" else ""} (PDF)"
+        if (creditNoteCount > 0) {
+            lines += "→ $creditNoteCount avoir${if (creditNoteCount != 1) "s" else ""} (PDF)"
+        }
+        lines += "→ CSV de toutes tes factures"
+        lines += "→ Profil JSON"
+        val summaryText = lines.joinToString("\n")
+        val documents = mutableListOf<Pair<ByteArray, String>>()
+        documents += Pair(result.csvBytes, result.csvFilename)
+        documents += result.invoicePdfs
+        documents += result.creditNotePdfs
+        documents += Pair(result.profileJsonBytes, "mona-profil.json")
+        return Pair(summaryText, documents)
     }
 
     // --- Helpers ---

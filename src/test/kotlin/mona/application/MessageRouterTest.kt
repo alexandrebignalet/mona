@@ -5,6 +5,7 @@ import mona.application.client.GetClientHistory
 import mona.application.client.ListClients
 import mona.application.client.UpdateClient
 import mona.application.gdpr.DeleteAccount
+import mona.application.gdpr.ExportGdprData
 import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CorrectInvoice
 import mona.application.invoicing.CreateInvoice
@@ -368,6 +369,8 @@ private fun makeRouter(
     val pdf = pdfPort
     val dispatcher = EventDispatcher()
     val deleteAccount = DeleteAccount(userRepo, clientRepo, conversationRepo, invoiceRepo)
+    val exportCsv = ExportInvoicesCsv(invoiceRepo, clientRepo)
+    val exportGdprData = ExportGdprData(userRepo, invoiceRepo, clientRepo, exportCsv, pdf, cryptoPort)
     val router =
         MessageRouter(
             userRepository = userRepo,
@@ -386,7 +389,7 @@ private fun makeRouter(
             correctInvoice = CorrectInvoice(userRepo, clientRepo, invoiceRepo, pdf, dispatcher),
             getRevenue = GetRevenue(invoiceRepo),
             getUnpaid = GetUnpaidInvoices(invoiceRepo, clientRepo),
-            exportCsv = ExportInvoicesCsv(invoiceRepo, clientRepo),
+            exportCsv = exportCsv,
             updateClient = UpdateClient(clientRepo),
             setupProfile = SetupProfile(userRepo, sirenePort, cryptoPort),
             finalizeInvoice = FinalizeInvoice(userRepo, clientRepo, invoiceRepo, pdf),
@@ -394,6 +397,7 @@ private fun makeRouter(
             getClientHistory = GetClientHistory(clientRepo, invoiceRepo),
             configureSetting = ConfigureSetting(userRepo),
             deleteAccount = deleteAccount,
+            exportGdprData = exportGdprData,
         )
     return Triple(router, messagingPort, conversationRepo)
 }
@@ -1405,5 +1409,82 @@ class MessageRouterTest {
             // Cancel message sent
             val cancelMsg = messaging.sentMessages[1].second
             assertEquals("OK, on oublie ça", cancelMsg)
+        }
+
+    @Test
+    fun `export data - no invoices sends summary and profile json`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "export_data",
+                            toolUseId = "id1",
+                            inputJson = "{}",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "exporte mes données", userId = user.id))
+            val summaryMsg = messaging.sentMessages[0].second
+            assertTrue(summaryMsg.contains("Export RGPD"), "Expected export summary, got: $summaryMsg")
+            // CSV and profile JSON sent as documents
+            val docNames = messaging.sentDocuments.map { it.second }
+            assertTrue(docNames.any { it.endsWith(".csv") }, "Expected CSV document")
+            assertTrue(docNames.any { it == "mona-profil.json" }, "Expected profile JSON document")
+        }
+
+    @Test
+    fun `export data - with sent invoice sends invoice pdf`() =
+        runBlocking {
+            val user = makeUser()
+            val client =
+                Client(
+                    id = ClientId("c1"),
+                    userId = user.id,
+                    name = "Acme",
+                    email = null,
+                    address = null,
+                    companyName = null,
+                    siret = null,
+                    createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+                )
+            val invoice =
+                makeInvoice(
+                    id = InvoiceId("inv1"),
+                    clientId = ClientId("c1"),
+                    status = InvoiceStatus.Sent,
+                )
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "export_data",
+                            toolUseId = "id1",
+                            inputJson = "{}",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = InMemoryInvoiceRepository(invoice),
+                    clientRepo = InMemoryClientRepository(client),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "exporte mes données", userId = user.id))
+            val docNames = messaging.sentDocuments.map { it.second }
+            assertTrue(docNames.any { it.endsWith(".csv") }, "Expected CSV")
+            assertTrue(docNames.any { it == "F-2026-03-001.pdf" }, "Expected invoice PDF")
+            assertTrue(docNames.any { it == "mona-profil.json" }, "Expected profile JSON")
         }
 }
