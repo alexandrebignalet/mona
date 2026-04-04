@@ -10,6 +10,8 @@ interface UserRepository {
 
     suspend fun save(user: User)
 
+    suspend fun delete(userId: UserId)
+
     suspend fun findAllWithPeriodicity(): List<User>
 
     suspend fun findAllWithoutSiren(): List<User>

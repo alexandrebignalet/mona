@@ -75,6 +75,8 @@ private class StubClientRepoLC(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class StubInvoiceRepoLC(vararg invoices: Invoice) : InvoiceRepository {
@@ -124,6 +126,8 @@ private class StubInvoiceRepoLC(vararg invoices: Invoice) : InvoiceRepository {
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 class ListClientsTest {

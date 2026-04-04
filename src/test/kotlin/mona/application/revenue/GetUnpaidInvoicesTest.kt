@@ -118,6 +118,8 @@ private class StubInvoiceRepoUnpaid(
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubClientRepoUnpaid(vararg clients: Client) : ClientRepository {
@@ -133,6 +135,8 @@ private class StubClientRepoUnpaid(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 class GetUnpaidInvoicesTest {

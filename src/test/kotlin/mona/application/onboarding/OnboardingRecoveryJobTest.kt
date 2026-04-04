@@ -97,6 +97,8 @@ private class StubUserRepository(
     override suspend fun findAllWithPeriodicity(): List<User> = users.filter { it.declarationPeriodicity != null }
 
     override suspend fun findAllWithoutSiren(): List<User> = users.filter { it.siren == null }
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class StubInvoiceRepository(
@@ -146,6 +148,8 @@ private class StubInvoiceRepository(
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubOnboardingReminderRepository : OnboardingReminderRepository {
@@ -173,6 +177,8 @@ private class StubConversationRepository(
         userId: UserId,
         limit: Int,
     ): List<ConversationMessage> = messages.filter { it.userId == userId }.takeLast(limit)
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class StubMessagingPort : MessagingPort {

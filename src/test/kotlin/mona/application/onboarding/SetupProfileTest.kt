@@ -61,6 +61,8 @@ private class InMemoryUserRepo(user: User) : UserRepository {
 
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 
+    override suspend fun delete(userId: UserId) {}
+
     override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
 
     fun get(): User? = store[USER_ID]

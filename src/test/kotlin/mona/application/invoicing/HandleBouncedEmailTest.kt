@@ -100,6 +100,8 @@ private class StubInvoiceRepoByNumber(private vararg val invoices: Invoice) : In
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = invoices.filter { it.number == number }
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class SpyMessagingPort : MessagingPort {

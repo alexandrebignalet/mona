@@ -54,6 +54,8 @@ private class StubUserRepository(vararg users: User) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 
     override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class StubClientRepository(vararg clients: Client) : ClientRepository {
@@ -71,6 +73,8 @@ private class StubClientRepository(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class StubInvoiceRepository(vararg invoices: Invoice) : InvoiceRepository {
@@ -128,6 +132,8 @@ private class StubInvoiceRepository(vararg invoices: Invoice) : InvoiceRepositor
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubPdfPort : PdfPort {

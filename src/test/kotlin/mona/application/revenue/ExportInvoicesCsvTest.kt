@@ -110,6 +110,8 @@ private class StubInvoiceRepoCsv(vararg invoices: Invoice) : InvoiceRepository {
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubClientRepoCsv(vararg clients: Client) : ClientRepository {
@@ -125,6 +127,8 @@ private class StubClientRepoCsv(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 class ExportInvoicesCsvTest {

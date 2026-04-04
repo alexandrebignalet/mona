@@ -57,6 +57,8 @@ private class StubUserRepoCancelInvoice(vararg users: User) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
 
     override suspend fun findAllWithoutSiren(): List<User> = emptyList()
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class StubClientRepoCancelInvoice(vararg clients: Client) : ClientRepository {
@@ -72,6 +74,8 @@ private class StubClientRepoCancelInvoice(vararg clients: Client) : ClientReposi
     ): List<Client> = emptyList()
 
     override suspend fun findByUser(userId: UserId): List<Client> = emptyList()
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class StubInvoiceRepoCancelInvoice(vararg invoices: Invoice) : InvoiceRepository {
@@ -133,6 +137,8 @@ private class StubInvoiceRepoCancelInvoice(vararg invoices: Invoice) : InvoiceRe
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubPdfPortCancelInvoice : PdfPort {

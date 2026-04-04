@@ -90,6 +90,8 @@ private class StubInvoiceRepoDraft(vararg invoices: Invoice) : InvoiceRepository
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private fun makeDraftInvoice(status: InvoiceStatus = InvoiceStatus.Draft): Invoice =

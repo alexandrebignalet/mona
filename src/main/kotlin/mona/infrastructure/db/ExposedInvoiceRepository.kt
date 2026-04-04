@@ -19,6 +19,7 @@ import mona.domain.port.InvoiceRepository
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
@@ -88,6 +89,23 @@ class ExposedInvoiceRepository : InvoiceRepository {
             CreditNotesTable.deleteWhere { invoiceId eq id.value }
             InvoiceLineItemsTable.deleteWhere { invoiceId eq id.value }
             InvoicesTable.deleteWhere { InvoicesTable.id eq id.value }
+        }
+    }
+
+    override suspend fun anonymizeByUser(userId: UserId) {
+        newSuspendedTransaction {
+            InvoicesTable.update({ InvoicesTable.userId eq userId.value }) {
+                it[InvoicesTable.userId] = null
+            }
+            val clientIds =
+                ClientsTable.selectAll()
+                    .where { ClientsTable.userId eq userId.value }
+                    .map { it[ClientsTable.id] }
+            if (clientIds.isNotEmpty()) {
+                InvoicesTable.update({ InvoicesTable.clientId inList clientIds }) {
+                    it[InvoicesTable.clientId] = null
+                }
+            }
         }
     }
 

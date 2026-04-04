@@ -15,4 +15,6 @@ interface ClientRepository {
     ): List<Client>
 
     suspend fun findByUser(userId: UserId): List<Client>
+
+    suspend fun deleteByUser(userId: UserId)
 }

@@ -12,50 +12,7 @@ Phases 1.1–14.4 done. See git log for details.
 
 ## Phase 15: GDPR Compliance
 
-### 15.2 GDPR Account Deletion
-
-**Spec:** §12 Right to Deletion
-
-**What:** Allow a user to request full account deletion via chat. Mona asks for confirmation, then permanently deletes profile data, client records, conversation history, and auxiliary records while retaining anonymized invoice records (nullified FKs from 15.1).
-
-**Layers:**
-
-- **`domain/port/UserRepository.kt`** — Add `suspend fun delete(userId: UserId)`.
-- **`domain/port/ClientRepository.kt`** — Add `suspend fun deleteByUser(userId: UserId)`.
-- **`domain/port/ConversationRepository.kt`** — Add `suspend fun deleteByUser(userId: UserId)`.
-- **`infrastructure/db/ExposedInvoiceRepository.kt`** — Add `suspend fun anonymizeByUser(userId: UserId)`: within a transaction, (1) set `InvoicesTable.userId = null` for all invoices where userId matches, (2) set `InvoicesTable.clientId = null` for all invoices whose clientId is in the set of clients owned by this user. Called by `DeleteAccount` before any row deletion.
-- **`infrastructure/db/ExposedClientRepository.kt`** — Implement `deleteByUser`: delete all Client rows for the given user. (Invoice clientId FKs must be nullified before this runs.)
-- **`infrastructure/db/ExposedConversationRepository.kt`** — Implement `deleteByUser`: delete all `ConversationMessagesTable` rows for the user.
-- **`infrastructure/db/ExposedUserRepository.kt`** — Implement `delete`: delete from `UrssafRemindersTable`, `OnboardingRemindersTable`, `VatAlertsTable` where userId matches, then delete the User row.
-- **`application/gdpr/DeleteAccount.kt`** (new package) — Use case (~20 lines): validate user exists, then execute in order:
-  1. `anonymizeByUser` — nullify `InvoicesTable.userId` for this user and `InvoicesTable.clientId` for all clients of this user
-  2. Delete from `UrssafRemindersTable`, `OnboardingRemindersTable`, `VatAlertsTable`
-  3. Delete all Client rows for user (safe — invoices no longer FK-reference them)
-  4. Delete all ConversationMessages for user
-  5. Delete User row
-
-  This order satisfies all FK constraints: `ClientsTable.userId`, `ConversationMessagesTable.userId`, and the three reminder tables all reference `UsersTable.id`.
-- **`infrastructure/llm/ActionTypes.kt`** — Add `data object DeleteAccount : ParsedAction()` to sealed class.
-- **`infrastructure/llm/ToolDefinitions.kt`** — Add `delete_account` tool (no parameters; user identity from context). Add to `all` list.
-- **`infrastructure/llm/ActionParser.kt`** — Map `"delete_account"` tool call to `ParsedAction.DeleteAccount`.
-- **`application/MessageRouter.kt`** — Add `is ParsedAction.DeleteAccount -> handleDeleteAccount(user)` to the `when` expression in `handleAction`. Add `pendingDeletionSet: ConcurrentHashMap<String, Boolean>` (follows existing pattern of `pendingConfirmationMap`/`pendingDuplicateMap`). `handleDeleteAccount`: send confirmation prompt ("Tu es sur·e ? Cette action est irréversible."), wait for confirmation token (reuse `CONFIRM_TOKENS`/`CANCEL_TOKENS` pattern via `pendingDeletionSet`), then execute `DeleteAccount` use case, send farewell message. On cancellation respond "OK, on oublie ça".
-
-**Acceptance criteria:**
-- User says "supprime mon compte" and Mona responds with confirmation prompt
-- On confirmation: user profile, all client records, conversation history, urssaf/onboarding/vat reminders all deleted from DB
-- Invoice rows remain in DB with NULL userId and NULL clientId (anonymized retention)
-- Credit notes and line items remain intact (they reference InvoicesTable, not UsersTable)
-- On cancellation, Mona responds "OK, on oublie ça" and nothing is deleted
-- On next contact after deletion, user is treated as brand-new (new onboarding)
-- No FK constraint violations during deletion
-
-**Golden tests:** Add `delete_account` entries to `src/test/resources/golden/parsing_cases.json` covering: "supprime mon compte", "je veux supprimer mes données", "efface tout"
-
-**Tests:**
-- `DeleteAccountTest` — verifies full deletion sequence: user + clients + conversations + reminders deleted, invoices remain with null FKs
-- MessageRouter tests: confirm path + cancel path
-
-**Validation:** `./gradlew build && ./gradlew ktlintCheck`
+Implemented: ports (UserRepository.delete, ClientRepository.deleteByUser, ConversationRepository.deleteByUser, InvoiceRepository.anonymizeByUser), all Exposed impls, DeleteAccount use case, delete_account tool, ActionParser mapping, MessageRouter confirm/cancel flow with pendingDeletionSet. Tests: confirm path, cancel path, confirmation prompt. Golden tests added.
 
 ---
 

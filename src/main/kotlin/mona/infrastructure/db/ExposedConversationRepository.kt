@@ -48,6 +48,12 @@ class ExposedConversationRepository : ConversationRepository {
                 .reversed()
         }
 
+    override suspend fun deleteByUser(userId: UserId) {
+        newSuspendedTransaction {
+            ConversationMessagesTable.deleteWhere { ConversationMessagesTable.userId eq userId.value }
+        }
+    }
+
     private fun pruneOldMessages(userId: UserId) {
         val messagesToKeep =
             ConversationMessagesTable.selectAll()

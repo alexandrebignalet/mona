@@ -9,7 +9,9 @@ import mona.domain.model.UserId
 import mona.domain.port.ClientRepository
 import org.jetbrains.exposed.sql.LowerCase
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -76,6 +78,12 @@ class ExposedClientRepository : ClientRepository {
                 .where { ClientsTable.userId eq userId.value }
                 .map { it.toClient() }
         }
+
+    override suspend fun deleteByUser(userId: UserId) {
+        newSuspendedTransaction {
+            ClientsTable.deleteWhere { ClientsTable.userId eq userId.value }
+        }
+    }
 
     private fun ResultRow.toClient(): Client {
         val street = this[ClientsTable.addressStreet]

@@ -117,6 +117,8 @@ sealed class ParsedAction {
         val city: String,
     ) : ParsedAction()
 
+    data object DeleteAccount : ParsedAction()
+
     data class Conversational(
         val response: String,
     ) : ParsedAction()
@@ -151,6 +153,7 @@ object ActionParser {
             "configure_setting" -> ParsedAction.ConfigureSetting(obj.str("setting"), obj.str("value"))
             "list_clients" -> ParsedAction.ListClients
             "client_history" -> ParsedAction.ClientHistory(obj.str("client_name"))
+            "delete_account" -> ParsedAction.DeleteAccount
             "conversational" -> ParsedAction.Conversational(obj.str("response"))
             "unknown" -> ParsedAction.Unknown(obj.str("clarification"))
             else -> ParsedAction.Unknown("Action non reconnue : $toolName")

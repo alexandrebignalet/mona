@@ -8,6 +8,7 @@ import mona.application.client.ListClientsCommand
 import mona.application.client.UpdateClient
 import mona.application.client.UpdateClientCommand
 import mona.application.client.UpdateClientResult
+import mona.application.gdpr.DeleteAccount
 import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CancelInvoiceCommand
 import mona.application.invoicing.CorrectInvoice
@@ -117,11 +118,13 @@ class MessageRouter(
     private val listClients: ListClients,
     private val getClientHistory: GetClientHistory,
     private val configureSetting: mona.application.settings.ConfigureSetting,
+    private val deleteAccount: DeleteAccount,
 ) {
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
     private val pendingConfirmationMap = ConcurrentHashMap<String, PendingConfirmation>()
     private val pendingDuplicateMap = ConcurrentHashMap<String, PendingDuplicate>()
+    private val pendingDeletionSet = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun handle(message: IncomingMessage) {
         val today = LocalDate.now()
@@ -202,6 +205,36 @@ class MessageRouter(
                             "Je l'envoie par mail à ${pendingDuplicate.displayClientName} ?"
                     messagingPort.sendMessage(user.id, responseText)
                     saveConversation(user.id, message.text, responseText)
+                    return
+                }
+                // Otherwise fall through to LLM
+            }
+        }
+
+        // Handle pending account deletion (bypasses LLM for simple yes/no)
+        if (pendingDeletionSet.contains(user.id.value)) {
+            val lower = message.text.trim().lowercase()
+
+            fun isStandaloneToken(tokens: Set<String>): Boolean =
+                tokens.any { token ->
+                    lower.startsWith(token) &&
+                        lower.substring(token.length).all { c -> !c.isLetterOrDigit() }
+                }
+            when {
+                isStandaloneToken(CONFIRM_TOKENS) -> {
+                    pendingDeletionSet.remove(user.id.value)
+                    deleteAccount.execute(user.id)
+                    messagingPort.sendMessage(
+                        user.id,
+                        "Compte supprimé. Toutes tes données ont été effacées. Prends soin de toi.",
+                    )
+                    return
+                }
+                isStandaloneToken(CANCEL_TOKENS) -> {
+                    pendingDeletionSet.remove(user.id.value)
+                    val cancelText = "OK, on oublie ça"
+                    messagingPort.sendMessage(user.id, cancelText)
+                    saveConversation(user.id, message.text, cancelText)
                     return
                 }
                 // Otherwise fall through to LLM
@@ -373,6 +406,7 @@ class MessageRouter(
                 is ParsedAction.ConfigureSetting -> handleConfigureSetting(user, action)
                 is ParsedAction.ListClients -> handleListClients(user)
                 is ParsedAction.ClientHistory -> handleClientHistory(user, action)
+                is ParsedAction.DeleteAccount -> handleDeleteAccount(user)
             }
         } catch (e: Exception) {
             Pair("J'ai eu un problème inattendu — réessaie dans un instant.", emptyList())
@@ -851,6 +885,16 @@ class MessageRouter(
                     }
                 }
         }
+    }
+
+    // --- GDPR handlers ---
+
+    private fun handleDeleteAccount(user: User): RouteResult {
+        pendingDeletionSet.add(user.id.value)
+        return Pair(
+            "Tu es sûr·e ? Cette action est irréversible — toutes tes données seront effacées.",
+            emptyList(),
+        )
     }
 
     // --- Helpers ---

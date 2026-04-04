@@ -19,4 +19,6 @@ interface ConversationRepository {
         userId: UserId,
         limit: Int = 3,
     ): List<ConversationMessage>
+
+    suspend fun deleteByUser(userId: UserId)
 }

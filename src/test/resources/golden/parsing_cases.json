@@ -630,5 +630,32 @@
     "userMessage": "Quelle est la météo à Paris aujourd'hui ?",
     "expectedTool": "unknown",
     "expectedParams": {}
+  },
+  {
+    "id": "delete_account_01",
+    "category": "delete_account",
+    "description": "Suppression de compte directe",
+    "conversationHistory": [],
+    "userMessage": "supprime mon compte",
+    "expectedTool": "delete_account",
+    "expectedParams": {}
+  },
+  {
+    "id": "delete_account_02",
+    "category": "delete_account",
+    "description": "Demande de suppression des données personnelles (RGPD)",
+    "conversationHistory": [],
+    "userMessage": "je veux supprimer mes données",
+    "expectedTool": "delete_account",
+    "expectedParams": {}
+  },
+  {
+    "id": "delete_account_03",
+    "category": "delete_account",
+    "description": "Effacement complet du compte",
+    "conversationHistory": [],
+    "userMessage": "efface tout",
+    "expectedTool": "delete_account",
+    "expectedParams": {}
   }
 ]

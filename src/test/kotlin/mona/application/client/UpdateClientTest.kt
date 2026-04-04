@@ -49,6 +49,8 @@ private class StubClientRepoUC(vararg clients: Client) : ClientRepository {
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
 
+    override suspend fun deleteByUser(userId: UserId) {}
+
     fun get(id: ClientId): Client? = store[id]
 }
 

@@ -113,6 +113,8 @@ private class VatStubInvoiceRepository(
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubVatAlertRepository : VatAlertRepository {

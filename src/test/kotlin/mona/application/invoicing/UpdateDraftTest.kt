@@ -103,6 +103,8 @@ private class UdUserRepo(vararg users: User) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
 
     override suspend fun findAllWithoutSiren(): List<User> = emptyList()
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class UdClientRepo(vararg clients: Client) : ClientRepository {
@@ -120,6 +122,8 @@ private class UdClientRepo(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class UdInvoiceRepo(vararg invoices: Invoice) : InvoiceRepository {
@@ -173,6 +177,8 @@ private class UdInvoiceRepo(vararg invoices: Invoice) : InvoiceRepository {
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class UdPdfPort : PdfPort {

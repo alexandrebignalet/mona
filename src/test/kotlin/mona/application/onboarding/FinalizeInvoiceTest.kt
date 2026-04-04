@@ -98,6 +98,8 @@ private class FiUserRepo(private val user: User?) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = emptyList()
 
     override suspend fun findAllWithoutSiren(): List<User> = emptyList()
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class FiClientRepo(private val client: Client?) : ClientRepository {
@@ -111,6 +113,8 @@ private class FiClientRepo(private val client: Client?) : ClientRepository {
     ): List<Client> = emptyList()
 
     override suspend fun findByUser(userId: UserId): List<Client> = emptyList()
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class FiInvoiceRepo(private val invoice: Invoice?) : InvoiceRepository {
@@ -158,6 +162,8 @@ private class FiInvoiceRepo(private val invoice: Invoice?) : InvoiceRepository {
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class CapturingPdfPort : PdfPort {

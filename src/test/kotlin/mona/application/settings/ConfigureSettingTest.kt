@@ -51,6 +51,8 @@ private class StubUserRepository(user: User? = makeUser()) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 
     override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private fun makeUseCase(repo: UserRepository = StubUserRepository()): ConfigureSetting = ConfigureSetting(repo)

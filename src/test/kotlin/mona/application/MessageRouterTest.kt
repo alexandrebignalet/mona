@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import mona.application.client.GetClientHistory
 import mona.application.client.ListClients
 import mona.application.client.UpdateClient
+import mona.application.gdpr.DeleteAccount
 import mona.application.invoicing.CancelInvoice
 import mona.application.invoicing.CorrectInvoice
 import mona.application.invoicing.CreateInvoice
@@ -77,6 +78,10 @@ private class InMemoryUserRepository(vararg seed: User) : UserRepository {
         store[user.id] = user
     }
 
+    override suspend fun delete(userId: UserId) {
+        store.remove(userId)
+    }
+
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 
     override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
@@ -97,6 +102,10 @@ private class InMemoryClientRepository(vararg seed: Client) : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {
+        store.values.removeIf { it.userId == userId }
+    }
 }
 
 private class InMemoryInvoiceRepository(vararg seed: Invoice) : InvoiceRepository {
@@ -157,6 +166,15 @@ private class InMemoryInvoiceRepository(vararg seed: Invoice) : InvoiceRepositor
         }
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
+
+    override suspend fun anonymizeByUser(userId: UserId) {
+        val updated =
+            store.values.map { inv ->
+                if (inv.userId == userId) inv.copy(userId = null, clientId = null) else inv
+            }
+        store.clear()
+        updated.forEach { store[it.id] = it }
+    }
 }
 
 private class InMemoryConversationRepository : ConversationRepository {
@@ -170,6 +188,10 @@ private class InMemoryConversationRepository : ConversationRepository {
         userId: UserId,
         limit: Int,
     ): List<ConversationMessage> = saved.filter { it.userId == userId }.takeLast(limit)
+
+    override suspend fun deleteByUser(userId: UserId) {
+        saved.removeIf { it.userId == userId }
+    }
 }
 
 private class FakeMessagingPort : MessagingPort {
@@ -345,6 +367,7 @@ private fun makeRouter(
 ): Triple<MessageRouter, FakeMessagingPort, InMemoryConversationRepository> {
     val pdf = pdfPort
     val dispatcher = EventDispatcher()
+    val deleteAccount = DeleteAccount(userRepo, clientRepo, conversationRepo, invoiceRepo)
     val router =
         MessageRouter(
             userRepository = userRepo,
@@ -370,6 +393,7 @@ private fun makeRouter(
             listClients = ListClients(clientRepo, invoiceRepo),
             getClientHistory = GetClientHistory(clientRepo, invoiceRepo),
             configureSetting = ConfigureSetting(userRepo),
+            deleteAccount = deleteAccount,
         )
     return Triple(router, messagingPort, conversationRepo)
 }
@@ -1283,5 +1307,103 @@ class MessageRouterTest {
                 msg.contains("vérifier ton SIREN"),
                 "Expected SIRENE unavailable message with manual fallback prompt, got: $msg",
             )
+        }
+
+    @Test
+    fun `delete account - sends confirmation prompt on first request`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "delete_account",
+                            toolUseId = "id1",
+                            inputJson = "{}",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "supprime mon compte", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("irréversible"), "Expected confirmation prompt, got: $msg")
+        }
+
+    @Test
+    fun `delete account - confirm path deletes user and data`() =
+        runBlocking {
+            val user = makeUser()
+            val userRepo = InMemoryUserRepository(user)
+            val clientRepo = InMemoryClientRepository()
+            val conversationRepo = InMemoryConversationRepository()
+            val invoiceRepo = InMemoryInvoiceRepository()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "delete_account",
+                            toolUseId = "id1",
+                            inputJson = "{}",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = userRepo,
+                    clientRepo = clientRepo,
+                    conversationRepo = conversationRepo,
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            // First message: request deletion
+            router.handle(IncomingMessage(telegramId = 100L, text = "supprime mon compte", userId = user.id))
+            // Second message: confirm
+            router.handle(IncomingMessage(telegramId = 100L, text = "oui", userId = user.id))
+            // User should be deleted
+            assertEquals(null, userRepo.findById(user.id))
+            // Farewell message sent
+            val farewell = messaging.sentMessages[1].second
+            assertTrue(farewell.contains("supprimé"), "Expected farewell message, got: $farewell")
+        }
+
+    @Test
+    fun `delete account - cancel path does nothing`() =
+        runBlocking {
+            val user = makeUser()
+            val userRepo = InMemoryUserRepository(user)
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "delete_account",
+                            toolUseId = "id1",
+                            inputJson = "{}",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = userRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            // First message: request deletion
+            router.handle(IncomingMessage(telegramId = 100L, text = "supprime mon compte", userId = user.id))
+            // Second message: cancel
+            router.handle(IncomingMessage(telegramId = 100L, text = "non", userId = user.id))
+            // User should still exist
+            assertNotNull(userRepo.findById(user.id))
+            // Cancel message sent
+            val cancelMsg = messaging.sentMessages[1].second
+            assertEquals("OK, on oublie ça", cancelMsg)
         }
 }

@@ -324,6 +324,15 @@ object ToolDefinitions {
                 """.trimIndent(),
         )
 
+    private val deleteAccountTool =
+        LlmToolDefinition(
+            name = "delete_account",
+            description =
+                "Supprimer definitivement le compte et toutes les donnees personnelles (RGPD). " +
+                    "Utiliser quand l'utilisateur demande a supprimer son compte ou ses donnees.",
+            inputSchemaJson = """{"type": "object", "properties": {}}""",
+        )
+
     private val conversationalTool =
         LlmToolDefinition(
             name = "conversational",
@@ -377,6 +386,7 @@ object ToolDefinitions {
             configureSettingTool,
             listClientsTool,
             clientHistoryTool,
+            deleteAccountTool,
             conversationalTool,
             unknownTool,
         )

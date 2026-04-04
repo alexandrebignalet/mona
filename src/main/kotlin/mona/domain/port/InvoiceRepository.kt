@@ -59,4 +59,6 @@ interface InvoiceRepository {
     ): List<Invoice>
 
     suspend fun findByNumber(number: InvoiceNumber): List<Invoice>
+
+    suspend fun anonymizeByUser(userId: UserId)
 }

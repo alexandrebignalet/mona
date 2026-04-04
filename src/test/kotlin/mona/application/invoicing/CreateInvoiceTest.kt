@@ -51,6 +51,8 @@ private class InMemoryUserRepository(vararg users: User) : UserRepository {
     override suspend fun findAllWithPeriodicity(): List<User> = store.values.filter { it.declarationPeriodicity != null }
 
     override suspend fun findAllWithoutSiren(): List<User> = store.values.filter { it.siren == null }
+
+    override suspend fun delete(userId: UserId) {}
 }
 
 private class InMemoryClientRepository : ClientRepository {
@@ -68,6 +70,8 @@ private class InMemoryClientRepository : ClientRepository {
     ): List<Client> = store.values.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.values.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class InMemoryInvoiceRepository : InvoiceRepository {
@@ -125,6 +129,8 @@ private class InMemoryInvoiceRepository : InvoiceRepository {
     ): List<Invoice> = store.values.filter { it.clientId == clientId && it.amountHt == amountHt && !it.issueDate.isBefore(since) }
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = store.values.filter { it.number == number }
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class FakePdfPort : PdfPort {

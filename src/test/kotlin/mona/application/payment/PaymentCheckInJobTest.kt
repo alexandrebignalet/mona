@@ -124,6 +124,8 @@ private class StubInvoiceRepo(
     ): List<Invoice> = emptyList()
 
     override suspend fun findByNumber(number: InvoiceNumber): List<Invoice> = emptyList()
+
+    override suspend fun anonymizeByUser(userId: UserId) {}
 }
 
 private class StubClientRepo(vararg clients: Client) : ClientRepository {
@@ -139,6 +141,8 @@ private class StubClientRepo(vararg clients: Client) : ClientRepository {
     ): List<Client> = store.filter { it.userId == userId && it.name.equals(name, ignoreCase = true) }
 
     override suspend fun findByUser(userId: UserId): List<Client> = store.filter { it.userId == userId }
+
+    override suspend fun deleteByUser(userId: UserId) {}
 }
 
 private class CapturingMessagingPort : MessagingPort {

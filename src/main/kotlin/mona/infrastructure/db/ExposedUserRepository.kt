@@ -12,6 +12,7 @@ import mona.domain.model.UserId
 import mona.domain.port.UserRepository
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
@@ -47,6 +48,15 @@ class ExposedUserRepository : UserRepository {
                 .map { it.toUser() }
                 .filter { it.siren == null }
         }
+
+    override suspend fun delete(userId: UserId) {
+        newSuspendedTransaction {
+            UrssafRemindersTable.deleteWhere { UrssafRemindersTable.userId eq userId.value }
+            OnboardingRemindersTable.deleteWhere { OnboardingRemindersTable.userId eq userId.value }
+            VatAlertsTable.deleteWhere { VatAlertsTable.userId eq userId.value }
+            UsersTable.deleteWhere { UsersTable.id eq userId.value }
+        }
+    }
 
     override suspend fun save(user: User) {
         newSuspendedTransaction {
