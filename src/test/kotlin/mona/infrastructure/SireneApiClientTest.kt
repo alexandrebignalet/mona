@@ -16,10 +16,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SireneApiClientTest {
-    private fun client(handler: suspend (String, String) -> SireneHttpResponse): SireneApiClient =
+    private fun client(handler: suspend (String) -> SireneHttpResponse): SireneApiClient =
         SireneApiClient(
-            apiKey = "test-key",
-            httpExecutor = { url, apiKey -> handler(url, apiKey) },
+            httpExecutor = { url -> handler(url) },
         )
 
     @Test
@@ -27,7 +26,7 @@ class SireneApiClientTest {
         runTest {
             val siren = Siren("123456789")
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -69,7 +68,7 @@ class SireneApiClientTest {
         runTest {
             val siren = Siren("987654321")
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -105,7 +104,7 @@ class SireneApiClientTest {
     fun `lookupBySiren returns Err SirenNotFound on 404`() =
         runTest {
             val siren = Siren("000000001")
-            val adapter = client { _, _ -> SireneHttpResponse(404, """{"header":{"message":"404"}}""") }
+            val adapter = client { _ -> SireneHttpResponse(404, """{"header":{"message":"404"}}""") }
             val result = adapter.lookupBySiren(siren)
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SirenNotFound>(result.error)
@@ -115,7 +114,7 @@ class SireneApiClientTest {
     @Test
     fun `lookupBySiren returns Err SireneLookupFailed on 500`() =
         runTest {
-            val adapter = client { _, _ -> SireneHttpResponse(500, "Internal Server Error") }
+            val adapter = client { _ -> SireneHttpResponse(500, "Internal Server Error") }
             val result = adapter.lookupBySiren(Siren("123456789"))
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SireneLookupFailed>(result.error)
@@ -125,23 +124,10 @@ class SireneApiClientTest {
     @Test
     fun `lookupBySiren returns Err SireneLookupFailed on 401`() =
         runTest {
-            val adapter = client { _, _ -> SireneHttpResponse(401, """{"message":"Unauthorized"}""") }
+            val adapter = client { _ -> SireneHttpResponse(401, """{"message":"Unauthorized"}""") }
             val result = adapter.lookupBySiren(Siren("123456789"))
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SireneLookupFailed>(result.error)
-        }
-
-    @Test
-    fun `lookupBySiren uses API key in request`() =
-        runTest {
-            var capturedApiKey: String? = null
-            val adapter =
-                client { _, apiKey ->
-                    capturedApiKey = apiKey
-                    SireneHttpResponse(404, "{}")
-                }
-            adapter.lookupBySiren(Siren("123456789"))
-            assertEquals("test-key", capturedApiKey)
         }
 
     @Test
@@ -149,7 +135,7 @@ class SireneApiClientTest {
         runTest {
             var capturedUrl: String? = null
             val adapter =
-                client { url, _ ->
+                client { url ->
                     capturedUrl = url
                     SireneHttpResponse(404, "{}")
                 }
@@ -161,7 +147,7 @@ class SireneApiClientTest {
     fun `searchByNameAndCity returns list on 200`() =
         runTest {
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -201,7 +187,7 @@ class SireneApiClientTest {
     @Test
     fun `searchByNameAndCity returns empty list on 404`() =
         runTest {
-            val adapter = client { _, _ -> SireneHttpResponse(404, "{}") }
+            val adapter = client { _ -> SireneHttpResponse(404, "{}") }
             val result = adapter.searchByNameAndCity("INEXISTANT", "PARIS")
             assertIs<DomainResult.Ok<List<SireneResult>>>(result)
             assertTrue(result.value.isEmpty())
@@ -210,7 +196,7 @@ class SireneApiClientTest {
     @Test
     fun `searchByNameAndCity returns Err on 503`() =
         runTest {
-            val adapter = client { _, _ -> SireneHttpResponse(503, "Service unavailable") }
+            val adapter = client { _ -> SireneHttpResponse(503, "Service unavailable") }
             val result = adapter.searchByNameAndCity("COMPANY", "PARIS")
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SireneLookupFailed>(result.error)
@@ -220,7 +206,7 @@ class SireneApiClientTest {
     fun `lookupBySiren maps manufacturing NAF code to BIC_VENTE`() =
         runTest {
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -250,7 +236,7 @@ class SireneApiClientTest {
     fun `lookupBySiren maps legal services NAF code to BNC`() =
         runTest {
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -280,7 +266,7 @@ class SireneApiClientTest {
     fun `lookupBySiren returns null activityType when NAF code absent`() =
         runTest {
             val adapter =
-                client { _, _ ->
+                client { _ ->
                     SireneHttpResponse(
                         200,
                         """
@@ -303,5 +289,18 @@ class SireneApiClientTest {
             val result = adapter.lookupBySiren(Siren("333333333"))
             assertIs<DomainResult.Ok<SireneResult>>(result)
             assertNull(result.value.activityType)
+        }
+
+    @Test
+    fun `lookupBySiren propagates token refresh failure as SireneLookupFailed`() =
+        runTest {
+            val adapter =
+                SireneApiClient(
+                    httpExecutor = { _ -> throw mona.infrastructure.sirene.SireneTokenRefreshException("Token refresh failed: HTTP 401") },
+                )
+            val result = adapter.lookupBySiren(Siren("123456789"))
+            assertIs<DomainResult.Err>(result)
+            assertIs<DomainError.SireneLookupFailed>(result.error)
+            assertTrue((result.error as DomainError.SireneLookupFailed).reason.contains("Token refresh failed"))
         }
 }

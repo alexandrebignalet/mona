@@ -10,47 +10,26 @@ Phases 1.1–17.3 done. See git log for details.
 
 ---
 
-## Phase 18: SIRENE OAuth2 Token Management
+## Completed Phases (continued)
 
-**Spec:** `specs/sirene-oauth-spec.md`
-**Layer:** `infrastructure/sirene/`
-**Why:** INSEE SIRENE API uses OAuth2 client credentials with ~7-day token expiry. Current code uses a static Bearer token (`SIRENE_API_KEY`) that requires manual rotation. All SIRENE lookups fail with HTTP 401 until manually updated.
-
-### 18.1 SireneTokenProvider + SireneApiClient refactor
-
-**New: `infrastructure/sirene/SireneTokenProvider.kt`**
-- `class SireneTokenProvider(clientId: String, clientSecret: String)`
-- `suspend fun getToken(): String` — returns cached token if within expiry minus 60-second safety margin; otherwise fetches fresh token via:
-  `POST https://api.insee.fr/token` with `grant_type=client_credentials&client_id=...&client_secret=...`
-- Thread-safe via `kotlinx.coroutines.sync.Mutex` (only one coroutine refreshes at a time)
-- On HTTP 401 from a SIRENE API call: invalidate cached token, retry once with fresh token; if still 401, return `DomainResult.Err(DomainError.SireneLookupFailed(...))`
-- Token fetch failure (non-200 or network error) returns `DomainResult.Err(DomainError.SireneLookupFailed("Token refresh failed: ..."))`
-- Uses `java.net.http.HttpClient` (no new dependencies)
-
-**Changed: `infrastructure/sirene/SireneApiClient.kt`**
-- Remove `apiKey` constructor parameter; replace with `SireneTokenProvider` (passed at construction, not per-call)
-- `RealSireneHttpExecutor.get(url)` no longer takes `apiKey` — calls `tokenProvider.getToken()` internally
-- `SireneApiClient.fromEnv()` reads `SIRENE_CLIENT_ID` + `SIRENE_CLIENT_SECRET` (both required, `error()` on missing)
-- `SIRENE_API_KEY` env var no longer referenced anywhere
-
-**Tests:**
-- New `infrastructure/sirene/SireneTokenProviderTest.kt`: caching returns same token within expiry, refresh triggered at expiry minus 60s, concurrent calls don't double-refresh (Mutex), fetch failure propagates as `DomainResult.Err`
-- Update `infrastructure/sirene/SireneApiClientTest.kt`: remove `apiKey` param from fake executor, inject `SireneTokenProvider` stub
-
-**Golden tests:** None (no LLM tool or prompt changes)
-
-**Acceptance criteria:**
-- [ ] `SireneTokenProvider` caches token, refreshes automatically on expiry
-- [ ] `SireneApiClient.fromEnv()` reads `SIRENE_CLIENT_ID` + `SIRENE_CLIENT_SECRET`
-- [ ] String `SIRENE_API_KEY` appears in zero source files
-- [ ] Existing SIRENE integration tests pass with fake executor
-- [ ] `./gradlew build && ./gradlew ktlintCheck` passes
+Phase 18.1 done — SIRENE OAuth2 token management:
+- `SireneTokenProvider` with injectable `TokenFetcher` + `clock`, Mutex-based cache, 60s safety margin, `invalidate()` for 401 retry
+- `SireneApiClient` refactored: `apiKey` removed, `RealSireneHttpExecutor` handles 401 retry via token invalidation
+- `fromEnv()` reads `SIRENE_CLIENT_ID` + `SIRENE_CLIENT_SECRET`; `SIRENE_API_KEY` fully removed
+- New `SireneTokenProviderTest` (caching, expiry margin, Mutex concurrency, failure propagation)
+- Updated `SireneApiClientTest` (executor lambda signature, added token failure test)
 
 **Post-deploy (manual, after next deploy):**
 ```bash
 fly secrets set SIRENE_CLIENT_ID=xxx SIRENE_CLIENT_SECRET=xxx -a mona-late-tree-7299
 fly secrets unset SIRENE_API_KEY -a mona-late-tree-7299
 ```
+
+---
+
+## No Remaining Phases
+
+All planned v1 phases complete. See git log for full history.
 
 ---
 

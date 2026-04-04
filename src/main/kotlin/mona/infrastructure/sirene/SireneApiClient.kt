@@ -25,24 +25,34 @@ import java.nio.charset.StandardCharsets
 internal data class SireneHttpResponse(val statusCode: Int, val body: String)
 
 internal fun interface SireneHttpExecutor {
-    suspend fun get(
-        url: String,
-        apiKey: String,
-    ): SireneHttpResponse
+    suspend fun get(url: String): SireneHttpResponse
 }
 
-internal class RealSireneHttpExecutor : SireneHttpExecutor {
+internal class RealSireneHttpExecutor(
+    private val tokenProvider: SireneTokenProvider,
+) : SireneHttpExecutor {
     private val client: HttpClient = HttpClient.newHttpClient()
 
-    override suspend fun get(
+    override suspend fun get(url: String): SireneHttpResponse {
+        val token = tokenProvider.getToken()
+        val response = doGet(url, token)
+        if (response.statusCode == 401) {
+            tokenProvider.invalidate()
+            val freshToken = tokenProvider.getToken()
+            return doGet(url, freshToken)
+        }
+        return response
+    }
+
+    private suspend fun doGet(
         url: String,
-        apiKey: String,
+        token: String,
     ): SireneHttpResponse =
         withContext(Dispatchers.IO) {
             val request =
                 HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("Authorization", "Bearer $apiKey")
+                    .header("Authorization", "Bearer $token")
                     .header("Accept", "application/json")
                     .GET()
                     .build()
@@ -52,8 +62,7 @@ internal class RealSireneHttpExecutor : SireneHttpExecutor {
 }
 
 class SireneApiClient internal constructor(
-    private val apiKey: String,
-    private val httpExecutor: SireneHttpExecutor = RealSireneHttpExecutor(),
+    private val httpExecutor: SireneHttpExecutor,
     private val baseUrl: String = BASE_URL,
 ) : SirenePort {
     companion object {
@@ -61,41 +70,51 @@ class SireneApiClient internal constructor(
 
         private val json = Json { ignoreUnknownKeys = true }
 
-        fun fromEnv(): SireneApiClient =
-            SireneApiClient(
-                apiKey =
-                    System.getenv("SIRENE_API_KEY")
-                        ?: error("SIRENE_API_KEY environment variable is not set"),
-            )
-    }
-
-    override suspend fun lookupBySiren(siren: Siren): DomainResult<SireneResult> {
-        val url = "$baseUrl/siren/${siren.value}"
-        val response = httpExecutor.get(url, apiKey)
-        return when {
-            response.statusCode == 200 -> parseSirenResponse(response.body, siren)
-            response.statusCode == 404 -> DomainResult.Err(DomainError.SirenNotFound(siren))
-            else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+        fun fromEnv(): SireneApiClient {
+            val clientId =
+                System.getenv("SIRENE_CLIENT_ID")
+                    ?: error("SIRENE_CLIENT_ID environment variable is not set")
+            val clientSecret =
+                System.getenv("SIRENE_CLIENT_SECRET")
+                    ?: error("SIRENE_CLIENT_SECRET environment variable is not set")
+            val tokenProvider = SireneTokenProvider.create(clientId, clientSecret)
+            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(tokenProvider))
         }
     }
+
+    override suspend fun lookupBySiren(siren: Siren): DomainResult<SireneResult> =
+        try {
+            val url = "$baseUrl/siren/${siren.value}"
+            val response = httpExecutor.get(url)
+            when {
+                response.statusCode == 200 -> parseSirenResponse(response.body, siren)
+                response.statusCode == 404 -> DomainResult.Err(DomainError.SirenNotFound(siren))
+                else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+            }
+        } catch (e: SireneTokenRefreshException) {
+            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
+        }
 
     override suspend fun searchByNameAndCity(
         name: String,
         city: String,
-    ): DomainResult<List<SireneResult>> {
-        val rawQuery =
-            "(denominationUniteLegale:$name* OR nomUniteLegale:$name*)" +
-                " AND libelleCommuneEtablissement:$city*" +
-                " AND etablissementSiege:true"
-        val encodedQuery = URLEncoder.encode(rawQuery, StandardCharsets.UTF_8)
-        val url = "$baseUrl/siret?q=$encodedQuery&nombre=5"
-        val response = httpExecutor.get(url, apiKey)
-        return when {
-            response.statusCode == 200 -> parseSearchResponse(response.body)
-            response.statusCode == 404 -> DomainResult.Ok(emptyList())
-            else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+    ): DomainResult<List<SireneResult>> =
+        try {
+            val rawQuery =
+                "(denominationUniteLegale:$name* OR nomUniteLegale:$name*)" +
+                    " AND libelleCommuneEtablissement:$city*" +
+                    " AND etablissementSiege:true"
+            val encodedQuery = URLEncoder.encode(rawQuery, StandardCharsets.UTF_8)
+            val url = "$baseUrl/siret?q=$encodedQuery&nombre=5"
+            val response = httpExecutor.get(url)
+            when {
+                response.statusCode == 200 -> parseSearchResponse(response.body)
+                response.statusCode == 404 -> DomainResult.Ok(emptyList())
+                else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+            }
+        } catch (e: SireneTokenRefreshException) {
+            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
         }
-    }
 
     private fun parseSirenResponse(
         body: String,
