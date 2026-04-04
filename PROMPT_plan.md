@@ -18,11 +18,7 @@ Read it to understand the plan so far. It may be outdated — verify against cod
 
 ### 0c. Read relevant specs
 
-Based on IMPLEMENTATION_PLAN.md's next priorities, read the spec most relevant:
-- `specs/mvp-spec.md` — product features, UX flows, conversation design
-- `specs/tech-spec.md` — architecture, data model, integrations
-
-Read both only if the plan spans product and technical concerns.
+List `specs/*` and, based on IMPLEMENTATION_PLAN.md's next priorities, read every spec that is relevant. When in doubt, read it — reading too much is better than missing context. If the plan spans multiple concerns, read all of them.
 
 ### 0d. Verify source layout
 
