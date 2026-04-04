@@ -6,43 +6,51 @@ This plan is ordered by dependency: each item builds on what came before. Items 
 
 ## Completed Phases
 
-Phases 1.1–14.4 done. See git log for details.
+Phases 1.1–17.3 done. See git log for details.
 
 ---
 
-## Phase 15: GDPR Compliance
+## Phase 18: SIRENE OAuth2 Token Management
 
-Implemented: ports (UserRepository.delete, ClientRepository.deleteByUser, ConversationRepository.deleteByUser, InvoiceRepository.anonymizeByUser), all Exposed impls, DeleteAccount use case, delete_account tool, ActionParser mapping, MessageRouter confirm/cancel flow with pendingDeletionSet. Tests: confirm path, cancel path, confirmation prompt. Golden tests added.
+**Spec:** `specs/sirene-oauth-spec.md`
+**Layer:** `infrastructure/sirene/`
+**Why:** INSEE SIRENE API uses OAuth2 client credentials with ~7-day token expiry. Current code uses a static Bearer token (`SIRENE_API_KEY`) that requires manual rotation. All SIRENE lookups fail with HTTP 401 until manually updated.
 
-Phase 15.3 done: ExportGdprData use case, export_data tool, ExportData ParsedAction, MessageRouter handleExportData, 4 unit tests, 2 MessageRouter tests, 3 golden test cases. Build + lint pass.
+### 18.1 SireneTokenProvider + SireneApiClient refactor
 
----
+**New: `infrastructure/sirene/SireneTokenProvider.kt`**
+- `class SireneTokenProvider(clientId: String, clientSecret: String)`
+- `suspend fun getToken(): String` — returns cached token if within expiry minus 60-second safety margin; otherwise fetches fresh token via:
+  `POST https://api.insee.fr/token` with `grant_type=client_credentials&client_id=...&client_secret=...`
+- Thread-safe via `kotlinx.coroutines.sync.Mutex` (only one coroutine refreshes at a time)
+- On HTTP 401 from a SIRENE API call: invalidate cached token, retry once with fresh token; if still 401, return `DomainResult.Err(DomainError.SireneLookupFailed(...))`
+- Token fetch failure (non-200 or network error) returns `DomainResult.Err(DomainError.SireneLookupFailed("Token refresh failed: ..."))`
+- Uses `java.net.http.HttpClient` (no new dependencies)
 
-## Phase 16: Revenue Polish
+**Changed: `infrastructure/sirene/SireneApiClient.kt`**
+- Remove `apiKey` constructor parameter; replace with `SireneTokenProvider` (passed at construction, not per-call)
+- `RealSireneHttpExecutor.get(url)` no longer takes `apiKey` — calls `tokenProvider.getToken()` internally
+- `SireneApiClient.fromEnv()` reads `SIRENE_CLIENT_ID` + `SIRENE_CLIENT_SECRET` (both required, `error()` on missing)
+- `SIRENE_API_KEY` env var no longer referenced anywhere
 
-Phase 16.1 done: added `periodType`/`period` to `GetRevenueCommand`/`GetRevenueResult`, added `formatPeriodLabel` to `MessageRouter` (Ce mois / Janvier 2020 / Ce trimestre / T3 2020 / Cette année / 2020). 6 MessageRouter tests added. Build + lint pass.
+**Tests:**
+- New `infrastructure/sirene/SireneTokenProviderTest.kt`: caching returns same token within expiry, refresh triggered at expiry minus 60s, concurrent calls don't double-refresh (Mutex), fetch failure propagates as `DomainResult.Err`
+- Update `infrastructure/sirene/SireneApiClientTest.kt`: remove `apiKey` param from fake executor, inject `SireneTokenProvider` stub
 
-Phase 16.2 done: `previousBreakdown: RevenueBreakdown?` added to `GetRevenueResult`; computed for month/quarter, null for year. MessageRouter appends "Tu es à X% de ton CA du mois/trimestre dernier [emoji]" when previous total > 0. 4 GetRevenueTest cases + 4 MessageRouterTest cases added. Build + lint pass.
+**Golden tests:** None (no LLM tool or prompt changes)
 
----
+**Acceptance criteria:**
+- [ ] `SireneTokenProvider` caches token, refreshes automatically on expiry
+- [ ] `SireneApiClient.fromEnv()` reads `SIRENE_CLIENT_ID` + `SIRENE_CLIENT_SECRET`
+- [ ] String `SIRENE_API_KEY` appears in zero source files
+- [ ] Existing SIRENE integration tests pass with fake executor
+- [ ] `./gradlew build && ./gradlew ktlintCheck` passes
 
-## Phase 17: CI/CD Pipelines
-
-### 17.1 CI Workflow — DONE
-
-`.github/workflows/ci.yml` created. Triggers on push/PR to main. Job `build-and-test` with Temurin 21, Gradle cache, build+lint+upload. Build+lint pass.
-
----
-
-### 17.2 Golden Tests Workflow — DONE
-
-`.github/workflows/golden-tests.yml` created. `workflow_dispatch` only with optional `categories` input. Passes `ANTHROPIC_API_KEY` secret. Runs `GoldenParsingTest` + `GoldenContextTest` with optional `-Dgolden.categories` filter. Uploads test reports on `always()`.
-
----
-
-### 17.3 Deploy Workflow — DONE
-
-`.github/workflows/deploy.yml` created. Triggers on CI workflow success on `main` (automatic) and `workflow_dispatch` with `confirm: 'deploy'` guard (manual). Uses `superfly/flyctl-actions/setup-flyctl@master`, deploys with `--remote-only`, health check via `flyctl status --app mona-late-tree-7299`. `FLY_API_TOKEN` passed as env var from secrets.
+**Post-deploy (manual, after next deploy):**
+```bash
+fly secrets set SIRENE_CLIENT_ID=xxx SIRENE_CLIENT_SECRET=xxx -a mona-late-tree-7299
+fly secrets unset SIRENE_API_KEY -a mona-late-tree-7299
+```
 
 ---
 
