@@ -34,37 +34,9 @@ Phase 16.2 done: `previousBreakdown: RevenueBreakdown?` added to `GetRevenueResu
 
 ---
 
-### 17.2 Golden Tests Workflow
+### 17.2 Golden Tests Workflow — DONE
 
-**Spec:** `specs/ci-cd-spec.md` §3
-
-**What:** Create `.github/workflows/golden-tests.yml` — a manual-only workflow for running LLM golden tests against the real Claude API. Supports optional category filtering. Requires `ANTHROPIC_API_KEY` repository secret.
-
-**Layer:** infrastructure/CI (YAML only, no Kotlin changes)
-
-**File:** `.github/workflows/golden-tests.yml`
-
-**Contents:**
-- `name: Golden Tests`
-- Trigger: `workflow_dispatch` with optional `categories` input (string, default `""`, description: "Comma-separated golden test categories (blank = all)")
-- Runner: `ubuntu-latest`
-- Job: `golden-tests`
-- Environment variable: `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`
-- Steps:
-  1. `actions/checkout@v4`
-  2. `actions/setup-java@v4` with `distribution: temurin`, `java-version: '21'`
-  3. `actions/cache@v4` (same Gradle cache config as CI)
-  4. Run golden tests: `./gradlew test --tests "*.GoldenParsingTest" --tests "*.GoldenContextTest" --no-daemon` — when `inputs.categories` is non-empty, append `-Dgolden.categories=${{ inputs.categories }}`
-  5. `actions/upload-artifact@v4` uploading `build/reports/tests/` with `if: always()`
-
-**Acceptance criteria:**
-- Workflow only triggers manually (no push/PR trigger)
-- Optional `categories` input filters test execution when provided
-- `ANTHROPIC_API_KEY` secret is passed as environment variable
-- Test reports uploaded even on failure
-- All Gradle invocations use `--no-daemon`
-
-**Validation:** Trigger manually from GitHub Actions UI. Confirm golden tests execute against real API. Confirm category filtering works when input is provided.
+`.github/workflows/golden-tests.yml` created. `workflow_dispatch` only with optional `categories` input. Passes `ANTHROPIC_API_KEY` secret. Runs `GoldenParsingTest` + `GoldenContextTest` with optional `-Dgolden.categories` filter. Uploads test reports on `always()`.
 
 ---
 
