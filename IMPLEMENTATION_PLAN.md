@@ -22,29 +22,7 @@ Phase 15.3 done: ExportGdprData use case, export_data tool, ExportData ParsedAct
 
 Phase 16.1 done: added `periodType`/`period` to `GetRevenueCommand`/`GetRevenueResult`, added `formatPeriodLabel` to `MessageRouter` (Ce mois / Janvier 2020 / Ce trimestre / T3 2020 / Cette année / 2020). 6 MessageRouter tests added. Build + lint pass.
 
-### 16.2 Revenue Comparison to Previous Period
-
-**Spec:** §6 "Tu es à 68% de ton CA du mois dernier"
-
-**What:** When showing monthly or quarterly revenue, compute the previous period's total and show a percentage comparison.
-
-**Layers:**
-
-- **`application/revenue/GetRevenue.kt`** — Add `previousBreakdown: RevenueBreakdown?` to `GetRevenueResult`. In `execute()`, for month/quarter periodTypes only, compute the previous period: for monthly use `DeclarationPeriod.monthly(prevStart.year, prevStart.monthValue)` where `prevStart = command.period.start.minusMonths(1)`; for quarterly use `DeclarationPeriod.quarterly(prevStart.year, quarter)` where `prevStart = command.period.start.minusMonths(3)` and `quarter = (prevStart.monthValue - 1) / 3 + 1`. Call `invoiceRepository.findPaidInPeriod` and `invoiceRepository.findCreditNotesInPeriod` for the previous period, then `RevenueCalculation.compute()` (pure function in `domain/service/RevenueCalculation.kt`). Yearly queries get `previousBreakdown = null`.
-- **`application/MessageRouter.kt`** — If `result.previousBreakdown` is non-null and its total > 0, append comparison line: "Tu es à X% de ton CA [du mois dernier / du trimestre dernier] [emoji]". Emoji: >=100% → rocket, >=60% → thumbs up, <60% → flexed bicep. If previous total is zero, omit comparison line entirely. Percentage rounded to nearest integer.
-
-**Acceptance criteria:**
-- Monthly revenue query includes comparison to previous month when previous month has data
-- Quarterly revenue query includes comparison to previous quarter
-- Yearly query has NO comparison line
-- No error when previous period has zero revenue (comparison line simply omitted)
-- Percentage rounded to nearest integer
-
-**Tests:**
-- `GetRevenueTest` — verify `previousBreakdown` populated for monthly/quarterly, null for yearly
-- MessageRouter test: comparison line appears/disappears based on previous data
-
-**Validation:** `./gradlew build && ./gradlew ktlintCheck`
+Phase 16.2 done: `previousBreakdown: RevenueBreakdown?` added to `GetRevenueResult`; computed for month/quarter, null for year. MessageRouter appends "Tu es à X% de ton CA du mois/trimestre dernier [emoji]" when previous total > 0. 4 GetRevenueTest cases + 4 MessageRouterTest cases added. Build + lint pass.
 
 ---
 

@@ -675,6 +675,18 @@ class MessageRouter(
                 lines += "→ ${activityTypeLabel(type)} : ${formatCents(amount)}"
             }
         }
+        val prevBreakdown = result.previousBreakdown
+        if (prevBreakdown != null && prevBreakdown.total.value > 0) {
+            val pct = Math.round(result.breakdown.total.value * 100.0 / prevBreakdown.total.value).toInt()
+            val periodLabel = if (result.periodType == "month") "du mois dernier" else "du trimestre dernier"
+            val emoji =
+                when {
+                    pct >= 100 -> "🚀"
+                    pct >= 60 -> "👍"
+                    else -> "💪"
+                }
+            lines += "Tu es à $pct% de ton CA $periodLabel $emoji"
+        }
         return Pair(lines.joinToString("\n"), emptyList())
     }
 

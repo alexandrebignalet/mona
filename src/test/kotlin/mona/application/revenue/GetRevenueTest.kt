@@ -52,6 +52,7 @@ private class StubInvoiceRepoRevenue(
     val creditSnapshots: List<CreditNoteSnapshot> = emptyList(),
     val sentInvoices: List<Invoice> = emptyList(),
     val overdueInvoices: List<Invoice> = emptyList(),
+    val paidByPeriod: Map<DeclarationPeriod, List<PaidInvoiceSnapshot>> = emptyMap(),
 ) : InvoiceRepository {
     override suspend fun findById(id: InvoiceId): Invoice? = null
 
@@ -84,7 +85,7 @@ private class StubInvoiceRepoRevenue(
     override suspend fun findPaidInPeriod(
         userId: UserId,
         period: DeclarationPeriod,
-    ): List<PaidInvoiceSnapshot> = paidSnapshots
+    ): List<PaidInvoiceSnapshot> = paidByPeriod[period] ?: paidSnapshots
 
     override suspend fun findCreditNotesInPeriod(
         userId: UserId,
@@ -188,5 +189,70 @@ class GetRevenueTest {
             val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
 
             assertEquals(Cents(20000), result.breakdown.total)
+        }
+
+    @Test
+    fun `previousBreakdown populated for monthly period`() =
+        runBlocking {
+            val currentPeriod = DeclarationPeriod.monthly(2026, 3)
+            val prevPeriod = DeclarationPeriod.monthly(2026, 2)
+            val currentSnapshots =
+                listOf(PaidInvoiceSnapshot(InvoiceId("i1"), Cents(100000), LocalDate.of(2026, 3, 10), ActivityType.BNC))
+            val prevSnapshots =
+                listOf(PaidInvoiceSnapshot(InvoiceId("i2"), Cents(80000), LocalDate.of(2026, 2, 15), ActivityType.BNC))
+            val repo =
+                StubInvoiceRepoRevenue(
+                    paidByPeriod =
+                        mapOf(
+                            currentPeriod to currentSnapshots,
+                            prevPeriod to prevSnapshots,
+                        ),
+                )
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, currentPeriod, "month"))
+
+            assertEquals(Cents(100000), result.breakdown.total)
+            assertEquals(Cents(80000), result.previousBreakdown?.total)
+        }
+
+    @Test
+    fun `previousBreakdown populated for quarterly period`() =
+        runBlocking {
+            val currentPeriod = DeclarationPeriod.quarterly(2026, 1)
+            val prevPeriod = DeclarationPeriod.quarterly(2025, 4)
+            val currentSnapshots =
+                listOf(PaidInvoiceSnapshot(InvoiceId("i1"), Cents(200000), LocalDate.of(2026, 1, 15), ActivityType.BNC))
+            val prevSnapshots =
+                listOf(PaidInvoiceSnapshot(InvoiceId("i2"), Cents(150000), LocalDate.of(2025, 11, 10), ActivityType.BNC))
+            val repo =
+                StubInvoiceRepoRevenue(
+                    paidByPeriod =
+                        mapOf(
+                            currentPeriod to currentSnapshots,
+                            prevPeriod to prevSnapshots,
+                        ),
+                )
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, currentPeriod, "quarter"))
+
+            assertEquals(Cents(200000), result.breakdown.total)
+            assertEquals(Cents(150000), result.previousBreakdown?.total)
+        }
+
+    @Test
+    fun `previousBreakdown is null for yearly period`() =
+        runBlocking {
+            val yearlyPeriod = DeclarationPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31))
+            val repo = StubInvoiceRepoRevenue()
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, yearlyPeriod, "year"))
+
+            assertEquals(null, result.previousBreakdown)
+        }
+
+    @Test
+    fun `previousBreakdown has zero total when previous period has no paid invoices`() =
+        runBlocking {
+            val repo = StubInvoiceRepoRevenue()
+            val result = GetRevenue(repo).execute(GetRevenueCommand(USER_REV, PERIOD, "month"))
+
+            assertEquals(Cents(0), result.previousBreakdown?.total)
         }
 }

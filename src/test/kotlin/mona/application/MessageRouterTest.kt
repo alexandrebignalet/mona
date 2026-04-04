@@ -109,7 +109,10 @@ private class InMemoryClientRepository(vararg seed: Client) : ClientRepository {
     }
 }
 
-private class InMemoryInvoiceRepository(vararg seed: Invoice) : InvoiceRepository {
+private class InMemoryInvoiceRepository(
+    vararg seed: Invoice,
+    val paidByPeriod: Map<DeclarationPeriod, List<PaidInvoiceSnapshot>> = emptyMap(),
+) : InvoiceRepository {
     val store = seed.associateBy { it.id }.toMutableMap()
 
     override suspend fun findById(id: InvoiceId): Invoice? = store[id]
@@ -146,7 +149,7 @@ private class InMemoryInvoiceRepository(vararg seed: Invoice) : InvoiceRepositor
     override suspend fun findPaidInPeriod(
         userId: UserId,
         period: DeclarationPeriod,
-    ): List<PaidInvoiceSnapshot> = emptyList()
+    ): List<PaidInvoiceSnapshot> = paidByPeriod[period] ?: emptyList()
 
     override suspend fun findCreditNotesInPeriod(
         userId: UserId,
@@ -1650,5 +1653,157 @@ class MessageRouterTest {
             router.handle(IncomingMessage(telegramId = 100L, text = "CA 2020", userId = user.id))
             val msg = messaging.sentMessages[0].second
             assertTrue(msg.startsWith("2020 :"), "Expected '2020 :' label, got: $msg")
+        }
+
+    // --- Revenue comparison tests ---
+
+    @Test
+    fun `get_revenue monthly appends comparison line when previous month has data`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"month","year":2026,"month":3,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val currentPeriod = DeclarationPeriod.monthly(2026, 3)
+            val prevPeriod = DeclarationPeriod.monthly(2026, 2)
+            val invoiceRepo =
+                InMemoryInvoiceRepository(
+                    paidByPeriod =
+                        mapOf(
+                            currentPeriod to
+                                listOf(
+                                    PaidInvoiceSnapshot(InvoiceId("i1"), Cents(80000), LocalDate.of(2026, 3, 10), ActivityType.BNC),
+                                ),
+                            prevPeriod to
+                                listOf(
+                                    PaidInvoiceSnapshot(InvoiceId("i2"), Cents(100000), LocalDate.of(2026, 2, 15), ActivityType.BNC),
+                                ),
+                        ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA mars 2026", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("Tu es à 80% de ton CA du mois dernier"), "Expected comparison line, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue monthly omits comparison line when previous month has no data`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"month","year":2026,"month":3,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA mars 2026", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(!msg.contains("du mois dernier"), "Comparison line should be absent, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue yearly has no comparison line even when invoices exist`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"year","year":2026,"month":null,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val yearPeriod = DeclarationPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31))
+            val invoiceRepo =
+                InMemoryInvoiceRepository(
+                    paidByPeriod =
+                        mapOf(
+                            yearPeriod to
+                                listOf(
+                                    PaidInvoiceSnapshot(InvoiceId("i1"), Cents(200000), LocalDate.of(2026, 3, 10), ActivityType.BNC),
+                                ),
+                        ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA 2026", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(!msg.contains("dernier"), "No comparison for yearly, got: $msg")
+        }
+
+    @Test
+    fun `get_revenue comparison emoji is rocket when at or above 100 percent`() =
+        runBlocking {
+            val user = makeUser()
+            val messaging = FakeMessagingPort()
+            val llm =
+                StubLlmPort(
+                    DomainResult.Ok(
+                        LlmResponse.ToolUse(
+                            toolName = "get_revenue",
+                            toolUseId = "id1",
+                            inputJson = """{"period_type":"month","year":2026,"month":3,"quarter":null}""",
+                        ),
+                    ),
+                )
+            val currentPeriod = DeclarationPeriod.monthly(2026, 3)
+            val prevPeriod = DeclarationPeriod.monthly(2026, 2)
+            val invoiceRepo =
+                InMemoryInvoiceRepository(
+                    paidByPeriod =
+                        mapOf(
+                            currentPeriod to
+                                listOf(
+                                    PaidInvoiceSnapshot(InvoiceId("i1"), Cents(120000), LocalDate.of(2026, 3, 10), ActivityType.BNC),
+                                ),
+                            prevPeriod to
+                                listOf(
+                                    PaidInvoiceSnapshot(InvoiceId("i2"), Cents(100000), LocalDate.of(2026, 2, 15), ActivityType.BNC),
+                                ),
+                        ),
+                )
+            val (router, _, _) =
+                makeRouter(
+                    userRepo = InMemoryUserRepository(user),
+                    invoiceRepo = invoiceRepo,
+                    messagingPort = messaging,
+                    llmPort = llm,
+                )
+            router.handle(IncomingMessage(telegramId = 100L, text = "CA mars 2026", userId = user.id))
+            val msg = messaging.sentMessages[0].second
+            assertTrue(msg.contains("🚀"), "Expected rocket emoji for >=100%, got: $msg")
         }
 }
