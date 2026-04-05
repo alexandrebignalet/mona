@@ -105,7 +105,7 @@ class SireneApiClient internal constructor(
             when {
                 response.statusCode == 200 -> parseSearchResponse(response.body)
                 response.statusCode == 404 -> DomainResult.Ok(emptyList())
-                else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+                else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
             }
         } catch (e: SireneTokenRefreshException) {
             DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
