@@ -41,7 +41,7 @@ trap 'rm -f "$OUTPUT_FILE"' EXIT
 # Telemetry: initialize CSV headers if files don't exist
 # ──────────────────────────────────────────────────────
 if [ ! -f "$METRICS_FILE" ]; then
-    echo "timestamp,phase,duration_sec,exit_code,outcome,retry_count,routed_model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,tool_calls,actual_model" > "$METRICS_FILE"
+    echo "timestamp,phase,duration_sec,exit_code,outcome,retry_count,routed_model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,tool_calls,actual_model,haiku_prepass" > "$METRICS_FILE"
 fi
 if [ ! -f "$ROUTING_METRICS_FILE" ]; then
     echo "timestamp,phase,routed_model,exit_code,retry_count" > "$ROUTING_METRICS_FILE"
@@ -134,6 +134,115 @@ generate_codebase_index() {
     # Generate lightweight index: path + first comment/class declaration
     find src -name '*.kt' -exec head -5 {} + > .codebase-index.txt 2>/dev/null || true
     grep '^#' specs/mvp-spec.md specs/tech-spec.md > .spec-toc.txt 2>/dev/null || true
+}
+
+# Calls Haiku with codebase index + spec TOC + task info.
+# Returns compact JSON manifest or empty string on failure.
+haiku_context_prepass() {
+    local PHASE="$1"
+    local TASK_SECTION="${2:-}"
+
+    # Requires jq for validation
+    if ! command -v jq &>/dev/null; then
+        echo ""
+        return
+    fi
+
+    local INDEX_FILE=".codebase-index.txt"
+    local TOC_FILE=".spec-toc.txt"
+    [ ! -f "$INDEX_FILE" ] && { echo ""; return; }
+    [ ! -f "$TOC_FILE" ] && { echo ""; return; }
+
+    local INDEX_SNIPPET TOC_SNIPPET
+    INDEX_SNIPPET=$(head -200 "$INDEX_FILE" 2>/dev/null || echo "")
+    TOC_SNIPPET=$(cat "$TOC_FILE" 2>/dev/null || echo "")
+
+    local HAIKU_PROMPT
+    HAIKU_PROMPT="Select the minimum relevant context for this Kotlin task. Return ONLY valid JSON — no explanation, no markdown.
+
+TASK: $PHASE
+DETAILS: $TASK_SECTION
+
+CODEBASE INDEX (path + first lines of each file):
+$INDEX_SNIPPET
+
+SPEC TOC (heading lines only):
+$TOC_SNIPPET
+
+Return JSON in this exact format:
+{\"context\":{\"spec_sections\":[\"## Exact Heading\"],\"source_files\":[\"src/path/File.kt\"]}}"
+
+    local RAW
+    RAW=$(echo "$HAIKU_PROMPT" | claude -p --model haiku --max-turns 1 2>/dev/null || echo "")
+
+    # Try to parse as-is first, then strip possible markdown fences
+    local MANIFEST
+    MANIFEST=$(echo "$RAW" | jq -c '.' 2>/dev/null || echo "")
+    if [ -z "$MANIFEST" ]; then
+        MANIFEST=$(echo "$RAW" | sed -n '/^```/,/^```/p' | grep -v '^```' | jq -c '.' 2>/dev/null || echo "")
+    fi
+
+    # Validate structure: must have at least source_files array
+    if [ -z "$MANIFEST" ] || ! echo "$MANIFEST" | jq -e '.context.source_files | arrays' &>/dev/null; then
+        echo ""
+        return
+    fi
+
+    echo "$MANIFEST"
+}
+
+# Builds an enriched prompt file from the base prompt + Haiku-selected context.
+# Prints the path to a temp file (caller must delete it when done).
+# Falls back to a copy of BASE_PROMPT if MANIFEST is empty or any step fails.
+build_enriched_prompt() {
+    local MANIFEST="$1"
+    local BASE_PROMPT="$2"
+    local TEMP_FILE
+    TEMP_FILE=$(mktemp /tmp/loop-prompt-XXXXXX.md)
+
+    cat "$BASE_PROMPT" > "$TEMP_FILE"
+
+    if [ -z "$MANIFEST" ]; then
+        echo "$TEMP_FILE"
+        return
+    fi
+
+    printf '\n\n---\n\n## Pre-loaded Context (Haiku-selected)\n\n' >> "$TEMP_FILE"
+
+    # Inject spec sections
+    local SPEC_SECTIONS
+    SPEC_SECTIONS=$(echo "$MANIFEST" | jq -r '.context.spec_sections // [] | .[]' 2>/dev/null || true)
+    if [ -n "$SPEC_SECTIONS" ]; then
+        while IFS= read -r HEADING; do
+            [ -z "$HEADING" ] && continue
+            local SPEC_FILE LINE_NUM
+            SPEC_FILE=$(grep -rl "^${HEADING}" specs/ 2>/dev/null | head -1 || echo "")
+            if [ -n "$SPEC_FILE" ]; then
+                LINE_NUM=$(grep -n "^${HEADING}" "$SPEC_FILE" 2>/dev/null | head -1 | cut -d: -f1 || echo "")
+                if [ -n "$LINE_NUM" ]; then
+                    printf '### From %s\n\n' "$SPEC_FILE" >> "$TEMP_FILE"
+                    sed -n "${LINE_NUM},$((LINE_NUM + 49))p" "$SPEC_FILE" >> "$TEMP_FILE" 2>/dev/null || true
+                    printf '\n\n' >> "$TEMP_FILE"
+                fi
+            fi
+        done <<< "$SPEC_SECTIONS"
+    fi
+
+    # Inject source files
+    local SOURCE_FILES
+    SOURCE_FILES=$(echo "$MANIFEST" | jq -r '.context.source_files // [] | .[]' 2>/dev/null || true)
+    if [ -n "$SOURCE_FILES" ]; then
+        while IFS= read -r FILE_PATH; do
+            [ -z "$FILE_PATH" ] && continue
+            if [ -f "$FILE_PATH" ]; then
+                printf '### %s\n\n```kotlin\n' "$FILE_PATH" >> "$TEMP_FILE"
+                cat "$FILE_PATH" >> "$TEMP_FILE"
+                printf '\n```\n\n' >> "$TEMP_FILE"
+            fi
+        done <<< "$SOURCE_FILES"
+    fi
+
+    echo "$TEMP_FILE"
 }
 
 # ──────────────────────────────────────────────────────
@@ -241,17 +350,23 @@ while true; do
     PHASE=$(extract_phase)
 
     # ── Model routing ──
+    # Always populate TASK_SECTION (needed for pre-pass and thinking budget)
+    TASK_SECTION=$(sed -n "/### ${PHASE##Phase }/,/^###/p" IMPLEMENTATION_PLAN.md 2>/dev/null | head -30 || echo "")
     if [ -n "$MODEL_OVERRIDE" ]; then
         MODEL="$MODEL_OVERRIDE"
     else
-        # Extract task description and acceptance criteria for the next phase
-        TASK_SECTION=$(sed -n "/### ${PHASE##Phase }/,/^###/p" IMPLEMENTATION_PLAN.md 2>/dev/null | head -30 || echo "")
         MODEL=$(classify_task "$PHASE" "$TASK_SECTION")
     fi
 
     THINKING_BUDGET=$(get_thinking_budget "$MODEL" "$TASK_SECTION")
 
-    echo "──────── Iteration $((ITERATION + 1)) | Phase: $PHASE | Model: $MODEL | Thinking: $THINKING_BUDGET ────────"
+    # ── Haiku context pre-pass ──
+    HAIKU_MANIFEST=$(haiku_context_prepass "$PHASE" "$TASK_SECTION")
+    HAIKU_USED="false"
+    [ -n "$HAIKU_MANIFEST" ] && HAIKU_USED="true"
+    ENRICHED_PROMPT=$(build_enriched_prompt "$HAIKU_MANIFEST" "$PROMPT_FILE")
+
+    echo "──────── Iteration $((ITERATION + 1)) | Phase: $PHASE | Model: $MODEL | Thinking: $THINKING_BUDGET | Haiku: $HAIKU_USED ────────"
 
     # ── Run Claude iteration ──
     # -p: Headless mode (non-interactive, reads from stdin)
@@ -259,7 +374,7 @@ while true; do
     # --output-format json: Structured output for telemetry + guardrails
     # --max-turns 40: Hard cap to prevent runaway loops
     # --verbose: Detailed execution logging
-    cat "$PROMPT_FILE" | claude -p \
+    cat "$ENRICHED_PROMPT" | claude -p \
         --dangerously-skip-permissions \
         --model "$MODEL" \
         --max-turns 40 \
@@ -271,13 +386,16 @@ while true; do
     ITER_END=$(date +%s)
     DURATION=$((ITER_END - ITER_START))
 
+    # Clean up enriched prompt temp file
+    rm -f "$ENRICHED_PROMPT"
+
     # ── Determine outcome ──
     OUTCOME="success"
     [ "$EXIT_CODE" -ne 0 ] && OUTCOME="fail"
 
     # ── Telemetry: extract and log metrics ──
     METRICS=$(extract_metrics "$OUTPUT_FILE")
-    echo "$(date -Iseconds),$PHASE,$DURATION,$EXIT_CODE,$OUTCOME,$RETRY_COUNT,$MODEL,$METRICS" >> "$METRICS_FILE"
+    echo "$(date -Iseconds),$PHASE,$DURATION,$EXIT_CODE,$OUTCOME,$RETRY_COUNT,$MODEL,$METRICS,$HAIKU_USED" >> "$METRICS_FILE"
 
     # ── Routing feedback loop ──
     echo "$(date -Iseconds),$PHASE,$MODEL,$EXIT_CODE,$RETRY_COUNT" >> "$ROUTING_METRICS_FILE"
