@@ -247,8 +247,16 @@ class MessageRouter(
             }
         }
 
-        val recentMessages = conversationRepository.findRecent(user.id, 3)
-        val context = PromptBuilder.buildContext(user, recentMessages)
+        val recentMessages = conversationRepository.findRecent(user.id, 2)
+        val currentMessage =
+            ConversationMessage(
+                id = UUID.randomUUID().toString(),
+                userId = user.id,
+                role = MessageRole.USER,
+                content = message.text,
+                createdAt = Instant.now(),
+            )
+        val context = PromptBuilder.buildContext(user, recentMessages + currentMessage)
         val llmResult =
             llmPort.complete(context.systemPrompt, context.userContextJson, context.messages, ToolDefinitions.all)
 

@@ -162,21 +162,21 @@ class PromptBuilderTest {
     }
 
     @Test
-    fun `buildContext takes at most 3 messages`() {
+    fun `buildContext passes all messages through`() {
         val user = makeUser()
         val messages = (1..5).map { makeMessage("message $it") }
         val ctx = PromptBuilder.buildContext(user, messages)
-        assertEquals(3, ctx.messages.size)
+        assertEquals(5, ctx.messages.size)
     }
 
     @Test
-    fun `buildContext keeps last 3 messages in order`() {
+    fun `buildContext preserves message order`() {
         val user = makeUser()
         val messages = (1..5).map { makeMessage("message $it") }
         val ctx = PromptBuilder.buildContext(user, messages)
-        assertEquals("message 3", ctx.messages[0].content)
-        assertEquals("message 4", ctx.messages[1].content)
-        assertEquals("message 5", ctx.messages[2].content)
+        assertEquals("message 1", ctx.messages[0].content)
+        assertEquals("message 3", ctx.messages[2].content)
+        assertEquals("message 5", ctx.messages[4].content)
     }
 
     @Test

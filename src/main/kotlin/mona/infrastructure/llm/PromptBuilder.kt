@@ -70,6 +70,6 @@ object PromptBuilder {
         ConversationContext(
             systemPrompt = SYSTEM_PROMPT,
             userContextJson = buildUserContext(user),
-            messages = recentMessages.takeLast(3),
+            messages = recentMessages,
         )
 }
