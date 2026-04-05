@@ -96,9 +96,9 @@ class SireneApiClient internal constructor(
     ): DomainResult<List<SireneResult>> =
         try {
             val rawQuery =
-                "(denominationUniteLegale:$name* OR nomUniteLegale:$name*)" +
-                    " AND libelleCommuneEtablissement:$city*" +
-                    " AND etablissementSiege:true"
+                "(denominationUniteLegale:\"$name\"* OR nomUniteLegale:\"$name\"*) " +
+                    "AND libelleCommuneEtablissement:\"$city\"* " +
+                    "AND etablissementSiege:true"
             val encodedQuery = URLEncoder.encode(rawQuery, StandardCharsets.UTF_8)
             val url = "$baseUrl/siret?q=$encodedQuery&nombre=5"
             val response = httpExecutor.get(url)
