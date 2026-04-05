@@ -83,7 +83,7 @@ class SireneApiClient internal constructor(
                 else -> {
                     // L10
                     log.warn("SIRENE lookup failed for {}: HTTP {}", siren.value, response.statusCode)
-                    DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+                    DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
                 }
             }
         } catch (e: SireneTokenRefreshException) {
