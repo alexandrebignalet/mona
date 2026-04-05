@@ -126,7 +126,7 @@ class SireneApiClient internal constructor(
             val siege = uniteLegale["etablissementSiege"]?.jsonObject
             val siretValue =
                 siege?.get("siret")?.jsonPrimitive?.content
-                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing siret in response"))
+                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing siret in response: $body"))
             val address = siege["adresseEtablissement"]?.jsonObject?.let { parseAddress(it) }
             DomainResult.Ok(
                 SireneResult(
