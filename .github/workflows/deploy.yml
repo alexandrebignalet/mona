@@ -17,6 +17,8 @@ jobs:
     if: |
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'deploy')
+    permissions:
+      deployments: write
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -32,3 +34,21 @@ jobs:
 
       - name: Health check
         run: flyctl status --app mona-late-tree-7299
+
+      - name: Annotate deployment
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          deployment_id=$(gh api \
+            -X POST /repos/${{ github.repository }}/deployments \
+            -f ref=${{ github.sha }} \
+            -f environment=production \
+            -f description="Deployed ${{ github.sha }}" \
+            -F auto_merge=false \
+            --jq '.id')
+          gh api \
+            -X POST /repos/${{ github.repository }}/deployments/${deployment_id}/statuses \
+            -f state=success \
+            -f description="Deployment successful" \
+            -f environment=production

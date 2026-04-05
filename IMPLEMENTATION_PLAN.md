@@ -6,7 +6,7 @@ This plan is ordered by dependency: each item builds on what came before. Items 
 
 ## Completed Phases
 
-Phases 1.1–20 done. See git log for details.
+Phases 1.1–22 done. See git log for details.
 
 > **Pending operations (not code — run manually):**
 >
@@ -39,20 +39,6 @@ Phases 1.1–20 done. See git log for details.
 - Telemetry row records whether Haiku pre-pass was used
 
 ---
-
-## Phase 22 — Deploy Workflow: Deployment Annotation
-
-**What:** Add the missing annotation step to `deploy.yml` that creates a GitHub deployment status with the deployed commit SHA.
-
-**Layer:** CI/CD (`.github/workflows/deploy.yml`).
-
-**Spec ref:** `specs/ci-cd-spec.md` §4 step 5.
-
-**Acceptance criteria:**
-- `deploy.yml` has a final step that records a GitHub deployment annotation with `github.sha`
-- Step uses `continue-on-error: true` so annotation failure does not fail the deploy job
-- `fly deploy` and health check steps remain unchanged
-- `./gradlew build && ./gradlew ktlintCheck` pass (N/A — YAML only)
 
 ---
 
