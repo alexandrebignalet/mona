@@ -69,6 +69,7 @@ import mona.infrastructure.llm.ParsedAction
 import mona.infrastructure.llm.ParsedLineItem
 import mona.infrastructure.llm.PromptBuilder
 import mona.infrastructure.llm.ToolDefinitions
+import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
@@ -124,6 +125,7 @@ class MessageRouter(
     private val deleteAccount: DeleteAccount,
     private val exportGdprData: ExportGdprData,
 ) {
+    private val log = LoggerFactory.getLogger(MessageRouter::class.java)
     private val rateLimitMap = ConcurrentHashMap<String, Pair<LocalDate, Int>>()
     private val rateLimitLock = Any()
     private val pendingConfirmationMap = ConcurrentHashMap<String, PendingConfirmation>()
@@ -252,8 +254,16 @@ class MessageRouter(
 
         val (responseText, documents) =
             when (llmResult) {
-                is DomainResult.Err ->
+                is DomainResult.Err -> {
+                    // L6
+                    log.warn(
+                        "Domain error for user {}: {} — {}",
+                        user.id,
+                        llmResult.error::class.simpleName,
+                        llmResult.error.message,
+                    )
                     Pair("Je suis momentanément indisponible — réessaie dans quelques minutes 🔄", emptyList())
+                }
                 is DomainResult.Ok -> route(user, llmResult.value)
             }
 
@@ -311,7 +321,7 @@ class MessageRouter(
                             "Bienvenue sur Mona ! J'ai retrouvé $name. " +
                             "Dis-moi « Facture 500€ pour [Client], [prestation] » pour créer ta première facture ✓"
                     }
-                    is DomainResult.Err -> responseText = formatDomainError(r.error)
+                    is DomainResult.Err -> responseText = logAndFormatDomainError(user.id, r.error)
                 }
             } else {
                 responseText = "Ce SIREN n'est pas valide — il doit contenir 9 chiffres."
@@ -462,7 +472,7 @@ class MessageRouter(
         command: CreateInvoiceCommand,
     ): RouteResult =
         when (val result = createInvoice.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok ->
                 when (val r = result.value) {
                     is CreateInvoiceResult.Created -> {
@@ -518,7 +528,7 @@ class MessageRouter(
                 ?: return Pair("Je ne trouve pas cette facture.", emptyList())
         val plainIban = user.ibanEncrypted?.let { cryptoPort.decrypt(it) }
         return when (val result = sendInvoice.execute(SendInvoiceCommand(user.id, invoice.id, plainIban))) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok -> {
                 val client = result.value.invoice.clientId?.let { clientRepository.findById(it) }
                 val emailStr = client?.email?.value ?: ""
@@ -537,7 +547,7 @@ class MessageRouter(
         val paymentDate = parseDate(action.paymentDate) ?: LocalDate.now()
         val method = parsePaymentMethod(action.paymentMethod)
         return when (val result = markInvoicePaid.execute(MarkInvoicePaidCommand(user.id, invoice.id, paymentDate, method))) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok ->
                 Pair(
                     "Noté ✓ Facture ${result.value.number.value} marquée comme payée par ${paymentMethodLabel(method)}.",
@@ -564,7 +574,7 @@ class MessageRouter(
                 activityType = parseActivityType(action.activityType),
             )
         return when (val result = updateDraft.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok -> {
                 val r = result.value
                 Pair(
@@ -584,7 +594,7 @@ class MessageRouter(
             findInvoiceByRef(user.id, action.invoiceNumber, action.clientName)
                 ?: return Pair("Je ne trouve pas cette facture.", emptyList())
         return when (val result = deleteDraft.execute(DeleteDraftCommand(user.id, invoice.id))) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok -> Pair("Facture ${result.value.number.value} supprimée ✓", emptyList())
         }
     }
@@ -598,7 +608,7 @@ class MessageRouter(
                 ?: return Pair("Je ne trouve pas cette facture.", emptyList())
         val command = CancelInvoiceCommand(user.id, invoice.id, action.reason ?: "", LocalDate.now())
         return when (val result = cancelInvoice.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok -> {
                 val r = result.value
                 val cnNumber = r.invoice.creditNote?.number?.value ?: ""
@@ -630,7 +640,7 @@ class MessageRouter(
                 issueDate = LocalDate.now(),
             )
         return when (val result = correctInvoice.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok -> {
                 val r = result.value
                 val cnNumber = r.cancelledInvoice.creditNote?.number?.value ?: ""
@@ -738,7 +748,7 @@ class MessageRouter(
                 siret = siret,
             )
         return when (val result = updateClient.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok ->
                 when (val r = result.value) {
                     is UpdateClientResult.Updated -> Pair("Client ${r.client.name} mis à jour ✓", emptyList())
@@ -759,7 +769,7 @@ class MessageRouter(
                 runCatching { Siren(action.siren.filter { it.isDigit() }) }.getOrNull()
                     ?: return Pair("Ce SIREN n'est pas valide — il doit contenir 9 chiffres.", emptyList())
             return when (val r = setupProfile.execute(SetupProfileCommand.LookupSiren(user.id, siren))) {
-                is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
+                is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, r.error), emptyList())
                 is DomainResult.Ok -> {
                     val found = (r.value as? SetupProfileResult.SirenFound)?.user
                     val profileText = buildProfileConfirmText(found)
@@ -772,7 +782,7 @@ class MessageRouter(
 
         if (action.iban != null) {
             val ibanResult = setupProfile.execute(SetupProfileCommand.SetIban(user.id, action.iban))
-            if (ibanResult is DomainResult.Err) return Pair(formatDomainError(ibanResult.error), emptyList())
+            if (ibanResult is DomainResult.Err) return Pair(logAndFormatDomainError(user.id, ibanResult.error), emptyList())
         }
 
         val address = buildAddress(action.addressStreet, action.addressPostalCode, action.addressCity)
@@ -793,7 +803,7 @@ class MessageRouter(
                 declarationPeriodicity = action.declarationPeriodicity?.let { parsePeriodicity(it) },
             )
         return when (val r = setupProfile.execute(updateCmd)) {
-            is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, r.error), emptyList())
             is DomainResult.Ok -> Pair("Profil mis à jour ✓", emptyList())
         }
     }
@@ -803,7 +813,7 @@ class MessageRouter(
         action: ParsedAction.SearchSiren,
     ): RouteResult {
         return when (val r = setupProfile.execute(SetupProfileCommand.SearchSiren(user.id, action.name, action.city))) {
-            is DomainResult.Err -> Pair(formatDomainError(r.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, r.error), emptyList())
             is DomainResult.Ok -> {
                 val matches = (r.value as? SetupProfileResult.SirenMatches)?.matches ?: emptyList()
                 if (matches.isEmpty()) {
@@ -861,7 +871,7 @@ class MessageRouter(
             )
         return when (val result = configureSetting.execute(command)) {
             is DomainResult.Ok -> Pair("Paramètre mis à jour ✓", emptyList())
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
         }
     }
 
@@ -884,7 +894,7 @@ class MessageRouter(
     ): RouteResult {
         val command = GetClientHistoryCommand(userId = user.id, clientName = action.clientName)
         return when (val result = getClientHistory.execute(command)) {
-            is DomainResult.Err -> Pair(formatDomainError(result.error), emptyList())
+            is DomainResult.Err -> Pair(logAndFormatDomainError(user.id, result.error), emptyList())
             is DomainResult.Ok ->
                 when (val r = result.value) {
                     is GetClientHistoryResult.Found -> {
@@ -1057,6 +1067,15 @@ class MessageRouter(
             PaymentMethod.CARTE -> "carte"
             PaymentMethod.AUTRE -> "autre moyen"
         }
+
+    private fun logAndFormatDomainError(
+        userId: UserId,
+        error: DomainError,
+    ): String {
+        // L6
+        log.warn("Domain error for user {}: {} — {}", userId, error::class.simpleName, error.message)
+        return formatDomainError(error)
+    }
 
     private fun formatDomainError(error: DomainError): String =
         when (error) {

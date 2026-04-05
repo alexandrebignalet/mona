@@ -9,6 +9,7 @@ import kotlinx.serialization.json.put
 import mona.domain.model.DomainError
 import mona.domain.model.DomainResult
 import mona.domain.port.EmailPort
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -59,6 +60,8 @@ class ResendEmailAdapter internal constructor(
     private val senderAddress: String = DEFAULT_SENDER,
     private val httpExecutor: HttpExecutor = RealHttpExecutor(),
 ) : EmailPort {
+    private val log = LoggerFactory.getLogger(ResendEmailAdapter::class.java)
+
     companion object {
         const val DEFAULT_SENDER = "factures@mona-app.fr"
         private const val RESEND_API_URL = "https://api.resend.com/emails"
@@ -101,10 +104,13 @@ class ResendEmailAdapter internal constructor(
 
         return when (val result = httpExecutor.post(RESEND_API_URL, apiKey, json)) {
             is ResendResult.Success -> DomainResult.Ok(Unit)
-            is ResendResult.Failure ->
+            is ResendResult.Failure -> {
+                // L9
+                log.warn("Email delivery failed: HTTP {} body={}", result.statusCode, result.body.take(500))
                 DomainResult.Err(
                     DomainError.EmailDeliveryFailed(result.statusCode, result.body),
                 )
+            }
         }
     }
 }

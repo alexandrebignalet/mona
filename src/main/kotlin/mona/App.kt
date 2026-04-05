@@ -54,6 +54,7 @@ import mona.infrastructure.pdf.PdfGenerator
 import mona.infrastructure.sirene.SireneApiClient
 import mona.infrastructure.telegram.TelegramApiClient
 import mona.infrastructure.telegram.TelegramBotAdapter
+import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.time.Duration
 import java.time.LocalDate
@@ -71,6 +72,7 @@ private val MENU_ITEMS =
     )
 
 private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private val log = LoggerFactory.getLogger("mona.App")
 
 fun main() {
     val dbPath = System.getenv("DATABASE_PATH") ?: "mona.db"
@@ -166,7 +168,9 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 overdueTransitionJob.execute(LocalDate.now(paris))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // L11
+                log.error("Job {} failed: {}", "overdue-transition", e.message)
             }
         }
     }
@@ -180,7 +184,9 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 paymentCheckInJob.execute(LocalDate.now(paris))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // L11
+                log.error("Job {} failed: {}", "payment-check-in", e.message)
             }
         }
     }
@@ -201,7 +207,9 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 urssafReminderJob.execute(LocalDate.now(paris))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // L11
+                log.error("Job {} failed: {}", "urssaf-reminder", e.message)
             }
         }
     }
@@ -222,7 +230,9 @@ fun main() {
             delay(Duration.between(now, nextRun).toMillis().coerceAtLeast(0L))
             try {
                 onboardingRecoveryJob.execute(LocalDate.now(paris))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // L11
+                log.error("Job {} failed: {}", "onboarding-recovery", e.message)
             }
         }
     }
@@ -307,10 +317,14 @@ fun main() {
         telegramAdapter.onCallback { }
         telegramAdapter.start()
     }
+    // L12
+    log.info("Mona started — webhook={}, db={}", webhookUrl, dbPath)
 
     // Graceful shutdown
     Runtime.getRuntime().addShutdownHook(
         Thread {
+            // L13
+            log.info("Mona shutting down")
             healthServer.stop(1)
             runBlocking { telegramAdapter.stop() }
             scope.cancel()

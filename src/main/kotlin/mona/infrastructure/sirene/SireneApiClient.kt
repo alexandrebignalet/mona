@@ -15,6 +15,7 @@ import mona.domain.model.Siren
 import mona.domain.model.Siret
 import mona.domain.port.SirenePort
 import mona.domain.port.SireneResult
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -65,6 +66,8 @@ class SireneApiClient internal constructor(
     private val httpExecutor: SireneHttpExecutor,
     private val baseUrl: String = BASE_URL,
 ) : SirenePort {
+    private val log = LoggerFactory.getLogger(SireneApiClient::class.java)
+
     companion object {
         const val BASE_URL = "https://api.insee.fr/entreprises/sirene/V3.11"
 
@@ -89,7 +92,11 @@ class SireneApiClient internal constructor(
             when {
                 response.statusCode == 200 -> parseSirenResponse(response.body, siren)
                 response.statusCode == 404 -> DomainResult.Err(DomainError.SirenNotFound(siren))
-                else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+                else -> {
+                    // L10
+                    log.warn("SIRENE lookup failed for {}: HTTP {}", siren.value, response.statusCode)
+                    DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}"))
+                }
             }
         } catch (e: SireneTokenRefreshException) {
             DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))

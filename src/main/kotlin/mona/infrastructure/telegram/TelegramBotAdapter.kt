@@ -17,6 +17,7 @@ import mona.domain.port.IncomingMessage
 import mona.domain.port.MenuItem
 import mona.domain.port.MessagingPort
 import mona.domain.port.UserRepository
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -27,6 +28,7 @@ class TelegramBotAdapter(
     private val webhookSecret: String,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : MessagingPort {
+    private val log = LoggerFactory.getLogger(TelegramBotAdapter::class.java)
     private val messageHandlers = CopyOnWriteArrayList<suspend (IncomingMessage) -> Unit>()
     private val callbackHandlers = CopyOnWriteArrayList<suspend (IncomingCallback) -> Unit>()
     private val chatIdCache = ConcurrentHashMap<UserId, Long>()
@@ -38,7 +40,11 @@ class TelegramBotAdapter(
     ) {
         val chatId = resolveChatId(userId) ?: return
         val keyboard = persistentKeyboards[userId]
-        apiClient.sendMessage(chatId, text, keyboard)
+        val result = apiClient.sendMessage(chatId, text, keyboard)
+        if (result is TgResult.Err) {
+            // L8
+            log.warn("Telegram send failed: {} {}", result.code, result.description)
+        }
     }
 
     override suspend fun sendDocument(
@@ -48,7 +54,11 @@ class TelegramBotAdapter(
         caption: String?,
     ) {
         val chatId = resolveChatId(userId) ?: return
-        apiClient.sendDocument(chatId, fileBytes, fileName, caption)
+        val result = apiClient.sendDocument(chatId, fileBytes, fileName, caption)
+        if (result is TgResult.Err) {
+            // L8
+            log.warn("Telegram send failed: {} {}", result.code, result.description)
+        }
     }
 
     override suspend fun sendButtons(
@@ -77,7 +87,11 @@ class TelegramBotAdapter(
                     },
                 )
             }
-        apiClient.sendMessage(chatId, text, inlineKeyboard)
+        val result = apiClient.sendMessage(chatId, text, inlineKeyboard)
+        if (result is TgResult.Err) {
+            // L8
+            log.warn("Telegram send failed: {} {}", result.code, result.description)
+        }
     }
 
     override suspend fun setPersistentMenu(
@@ -166,7 +180,9 @@ class TelegramBotAdapter(
                     callbackHandlers.forEach { it(incoming) }
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // L7
+            log.error("Webhook processing failed: {}", e.message)
             runCatching {
                 exchange.sendResponseHeaders(200, 0)
                 exchange.responseBody.close()

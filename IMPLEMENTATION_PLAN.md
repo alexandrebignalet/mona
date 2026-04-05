@@ -6,7 +6,7 @@ This plan is ordered by dependency: each item builds on what came before. Items 
 
 ## Completed Phases
 
-Phases 1.1–19.5 done. See git log for details.
+Phases 1.1–19.5 and Phase 20 done. See git log for details.
 
 > **Pending operations (not code — run manually):**
 >
@@ -20,30 +20,6 @@ Phases 1.1–19.5 done. See git log for details.
 >    - `fly secrets set TELEGRAM_WEBHOOK_URL=https://mona-late-tree-7299.fly.dev/webhook/telegram TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32) -a mona-late-tree-7299`
 >    - `fly deploy`
 >    - Smoke test: message → response, inline button → no 30s spinner, `/start` → onboarding, `/health` → 200, `/webhook/resend` → still works.
-
----
-
-## Phase 20 — Structured Logging
-
-**What:** Add SLF4J logging with 13 log points (L1–L13) across 6 files. No domain changes.
-
-**Layer:** Infrastructure (`ClaudeApiClient`, `TelegramBotAdapter`, `ResendEmailAdapter`, `SireneApiClient`) + Application (`MessageRouter`, `App.kt`).
-
-**Spec ref:** `specs/logging-spec.md` §§3–5.
-
-**Acceptance criteria:**
-- `build.gradle.kts` adds `org.slf4j:slf4j-api:2.0.16` and `org.slf4j:slf4j-simple:2.0.16`
-- Logger pattern is `private val log = LoggerFactory.getLogger(ClassName::class.java)` (instance field, not companion)
-- `ClaudeApiClient.kt`: L1 (non-200 WARN), L2 (rate-limit retry WARN), L3 (retries exhausted ERROR), L4 (request exception ERROR), L5 (parse failure ERROR)
-- `MessageRouter.kt`: L6 (domain error returned to user WARN, includes `userId`)
-- `TelegramBotAdapter.kt`: L7 (webhook exception ERROR), L8 (send/document failure WARN)
-- `ResendEmailAdapter.kt`: L9 (delivery failure WARN with status + truncated body ≤500 chars)
-- `SireneApiClient.kt`: L10 (lookup failure WARN)
-- `App.kt`: L11 (scheduled job exception ERROR — replaces 4 empty `catch (_: Exception) {}` blocks), L12 (startup INFO with webhook URL + db path), L13 (shutdown INFO via shutdown hook)
-- No PII logged (no message content, no names, no IBANs — only `UserId`, HTTP status codes, error messages)
-- Happy path produces zero log lines
-- `./gradlew build && ./gradlew ktlintCheck` pass
-- No golden tests needed (no LLM tools or action types changed)
 
 ---
 

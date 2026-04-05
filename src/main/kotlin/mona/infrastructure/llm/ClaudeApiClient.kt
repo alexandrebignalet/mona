@@ -18,6 +18,7 @@ import mona.domain.port.LlmPort
 import mona.domain.port.LlmResponse
 import mona.domain.port.LlmToolDefinition
 import mona.domain.port.MessageRole
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -62,6 +63,8 @@ class ClaudeApiClient internal constructor(
     private val model: String = MODEL,
     private val baseUrl: String = BASE_URL,
 ) : LlmPort {
+    private val log = LoggerFactory.getLogger(ClaudeApiClient::class.java)
+
     companion object {
         const val BASE_URL = "https://api.anthropic.com/v1"
         const val MODEL = "claude-sonnet-4-6"
@@ -134,10 +137,20 @@ class ClaudeApiClient internal constructor(
                     lastResponse = response
                     if (attempt < MAX_RETRIES - 1) {
                         val delayMs = RETRY_BASE_DELAY_MS * (1L shl attempt) // 2s, 4s, 8s
+                        // L2
+                        log.warn(
+                            "LLM rate-limited ({}), retry {}/{} in {}ms",
+                            response.statusCode,
+                            attempt + 1,
+                            MAX_RETRIES,
+                            delayMs,
+                        )
                         delay(delayMs)
                         continue
                     }
                 } else if (response.statusCode != 200) {
+                    // L1
+                    log.warn("LLM error: HTTP {} body={}", response.statusCode, response.body.take(500))
                     return DomainResult.Err(
                         DomainError.LlmUnavailable("HTTP ${response.statusCode}: ${response.body}"),
                     )
@@ -145,10 +158,14 @@ class ClaudeApiClient internal constructor(
                     return parseResponse(response.body)
                 }
             }
+            // L3
+            log.error("LLM unavailable after {} retries: HTTP {}", MAX_RETRIES, lastResponse!!.statusCode)
             DomainResult.Err(
-                DomainError.LlmUnavailable("HTTP ${lastResponse!!.statusCode}: ${lastResponse.body}"),
+                DomainError.LlmUnavailable("HTTP ${lastResponse.statusCode}: ${lastResponse.body}"),
             )
         } catch (e: Exception) {
+            // L4
+            log.error("LLM request failed: {}", e.message)
             DomainResult.Err(DomainError.LlmUnavailable("Request failed: ${e.message}"))
         }
     }
@@ -158,7 +175,10 @@ class ClaudeApiClient internal constructor(
             val root = json.parseToJsonElement(body).jsonObject
             val content =
                 root["content"]?.jsonArray
-                    ?: return DomainResult.Err(DomainError.LlmUnavailable("Missing content in response"))
+                    ?: run {
+                        log.error("LLM response parse error: {}", "Missing content in response")
+                        return DomainResult.Err(DomainError.LlmUnavailable("Missing content in response"))
+                    }
 
             val toolUseBlock =
                 content.firstOrNull {
@@ -168,13 +188,22 @@ class ClaudeApiClient internal constructor(
                 val obj = toolUseBlock.jsonObject
                 val name =
                     obj["name"]?.jsonPrimitive?.content
-                        ?: return DomainResult.Err(DomainError.LlmUnavailable("Missing tool name"))
+                        ?: run {
+                            log.error("LLM response parse error: {}", "Missing tool name")
+                            return DomainResult.Err(DomainError.LlmUnavailable("Missing tool name"))
+                        }
                 val id =
                     obj["id"]?.jsonPrimitive?.content
-                        ?: return DomainResult.Err(DomainError.LlmUnavailable("Missing tool use id"))
+                        ?: run {
+                            log.error("LLM response parse error: {}", "Missing tool use id")
+                            return DomainResult.Err(DomainError.LlmUnavailable("Missing tool use id"))
+                        }
                 val input =
                     obj["input"]
-                        ?: return DomainResult.Err(DomainError.LlmUnavailable("Missing tool input"))
+                        ?: run {
+                            log.error("LLM response parse error: {}", "Missing tool input")
+                            return DomainResult.Err(DomainError.LlmUnavailable("Missing tool input"))
+                        }
                 return DomainResult.Ok(LlmResponse.ToolUse(name, id, input.toString()))
             }
 
@@ -185,12 +214,19 @@ class ClaudeApiClient internal constructor(
             if (textBlock != null) {
                 val text =
                     textBlock.jsonObject["text"]?.jsonPrimitive?.content
-                        ?: return DomainResult.Err(DomainError.LlmUnavailable("Missing text content"))
+                        ?: run {
+                            log.error("LLM response parse error: {}", "Missing text content")
+                            return DomainResult.Err(DomainError.LlmUnavailable("Missing text content"))
+                        }
                 return DomainResult.Ok(LlmResponse.Text(text))
             }
 
+            // L5
+            log.error("LLM response parse error: {}", "No recognizable content in response")
             DomainResult.Err(DomainError.LlmUnavailable("No recognizable content in response"))
         } catch (e: Exception) {
+            // L5
+            log.error("LLM response parse error: {}", e.message)
             DomainResult.Err(DomainError.LlmUnavailable("Parse error: ${e.message}"))
         }
     }
