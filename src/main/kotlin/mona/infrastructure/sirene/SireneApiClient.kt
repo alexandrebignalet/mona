@@ -50,7 +50,6 @@ internal class RealSireneHttpExecutor(
             SireneHttpResponse(response.statusCode(), response.body())
         }
     }
-
 }
 
 class SireneApiClient internal constructor(
@@ -65,8 +64,9 @@ class SireneApiClient internal constructor(
         private val json = Json { ignoreUnknownKeys = true }
 
         fun fromEnv(): SireneApiClient {
-            val sireneApiKey = SireneApiKey(
-                    System.getenv("SIRENE_API_KEY") ?: error("SIRENE_API_KEY environment variable is not set")
+            val sireneApiKey =
+                SireneApiKey(
+                    System.getenv("SIRENE_API_KEY") ?: error("SIRENE_API_KEY environment variable is not set"),
                 )
 
             return SireneApiClient(httpExecutor = RealSireneHttpExecutor(sireneApiKey))
