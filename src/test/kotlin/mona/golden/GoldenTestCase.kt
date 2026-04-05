@@ -2,10 +2,12 @@ package mona.golden
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import mona.domain.model.DomainResult
 import mona.domain.model.UserId
 import mona.domain.port.ConversationMessage
@@ -28,6 +30,7 @@ data class GoldenTestCase(
     val userMessage: String,
     val expectedTool: String,
     val expectedParams: Map<String, String>,
+    val userContext: String? = null,
 )
 
 sealed class GoldenResult {
@@ -67,6 +70,10 @@ object GoldenTestLoader {
                     obj["expectedParams"]?.jsonObject?.mapValues { (_, v) ->
                         v.jsonPrimitive.contentOrNull ?: v.toString()
                     } ?: emptyMap(),
+                userContext =
+                    obj["userContext"]?.let { contextEl ->
+                        buildJsonObject { put("user_context", contextEl) }.toString()
+                    },
             )
         }
     }
@@ -95,7 +102,8 @@ object GoldenTestLoader {
                 createdAt = Instant.now(),
             )
         val messages = historyMessages + currentMessage
-        val userContextJson = """{"user_context":{"has_siren":true,"has_iban":true,"has_email":true,"onboarding_step":"complete"}}"""
+        val defaultContext = """{"user_context":{"has_siren":true,"has_iban":true,"has_email":true,"onboarding_step":"complete"}}"""
+        val userContextJson = case.userContext ?: defaultContext
 
         val result =
             runBlocking {

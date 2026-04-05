@@ -53,10 +53,10 @@
     "description": "Suppression de brouillon via pronom après création Acme",
     "conversationHistory": [
       { "role": "user", "content": "Facture Acme 500€" },
-      { "role": "assistant", "content": "Brouillon créé pour Acme, 500 €." }
+      { "role": "assistant", "content": "Brouillon F-2024-03-001 créé pour Acme, 500 €." }
     ],
     "userMessage": "Supprime-la",
-    "expectedTool": "unknown",
+    "expectedTool": "delete_draft",
     "expectedParams": {}
   },
   {
