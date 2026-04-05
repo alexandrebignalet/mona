@@ -11,3 +11,4 @@ Use this file to resolve which spec to read for a given implementation task. Rea
 | `loop-efficiency-spec.md` | Automated build loop token efficiency, context reduction strategies | 16 |
 | `telegram-direct-api-spec.md` | Replace TelegramBotAPI library with direct HTTP + webhook | 19 |
 | `logging-spec.md` | Minimal structured logging (SLF4J/Logback) | 20+ |
+| `cqrs-spec.md` | Generic CQRS framework module — command/query buses, middleware chains, event dispatching | 20+ |
