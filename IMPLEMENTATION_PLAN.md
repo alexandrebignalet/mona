@@ -6,86 +6,87 @@ This plan is ordered by dependency: each item builds on what came before. Items 
 
 ## Completed Phases
 
-Phases 1.1–18.1 done. See git log for details.
+Phases 1.1–19.5 done. See git log for details.
 
-> **Note (post-deploy, pending):** After next deploy, run SIRENE OAuth2 secrets rotation:
-> ```bash
-> fly secrets set SIRENE_CLIENT_ID=xxx SIRENE_CLIENT_SECRET=xxx -a mona-late-tree-7299
-> fly secrets unset SIRENE_API_KEY -a mona-late-tree-7299
-> ```
-
----
-
-## Phase 19 — Telegram Direct API Migration
-
-Replace `dev.inmo:tgbotapi` long-polling with direct HTTP calls to `api.telegram.org` using webhooks. Spec: `specs/telegram-direct-api-spec.md`.
-
-### 19.1 — TelegramModels.kt ✅ DONE
-
-Created `TelegramModels.kt` with six `@Serializable` DTOs (`TgUpdate`, `TgMessage`, `TgChat`, `TgCallbackQuery`, `TgUser`, `TgResponse<T>`). Added `kotlin("plugin.serialization")` to `build.gradle.kts` (was missing — the library was present but the compiler plugin was not). Tests: round-trip message update, round-trip callback_query update, unknown-field ignoring, null-text message, null-data callback. All pass.
+> **Pending operations (not code — run manually):**
+>
+> 1. **SIRENE secrets rotation:**
+>    ```bash
+>    fly secrets set SIRENE_CLIENT_ID=xxx SIRENE_CLIENT_SECRET=xxx -a mona-late-tree-7299
+>    fly secrets unset SIRENE_API_KEY -a mona-late-tree-7299
+>    ```
+>
+> 2. **Phase 19.6 — Deploy and verify:**
+>    - `fly secrets set TELEGRAM_WEBHOOK_URL=https://mona-late-tree-7299.fly.dev/webhook/telegram TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32) -a mona-late-tree-7299`
+>    - `fly deploy`
+>    - Smoke test: message → response, inline button → no 30s spinner, `/start` → onboarding, `/health` → 200, `/webhook/resend` → still works.
 
 ---
 
-### 19.2 — TelegramApiClient.kt ✅ DONE
+## Phase 20 — Structured Logging
 
-Created `TelegramApiClient.kt` with `TelegramHttpExecutor` interface (two-method: `post`/`postMultipart`) for test seam, `RealTelegramHttpExecutor` wrapping `java.net.http.HttpClient`, and `TgResult<T>` sealed class. Methods: `sendMessage` (JSON POST, `parse_mode=Markdown`, optional `reply_markup`), `sendDocument` (multipart/form-data with `MultipartField` sealed class), `answerCallbackQuery`, `setWebhook`, `deleteWebhook`. All HTTP in `withContext(Dispatchers.IO)`. Unit tests in `TelegramApiClientTest.kt` cover all methods, optional fields, success/error response parsing, and malformed JSON. Note: `fun interface` not possible for the executor because two abstract methods are required; used regular `interface` instead.
+**What:** Add SLF4J logging with 13 log points (L1–L13) across 6 files. No domain changes.
 
----
+**Layer:** Infrastructure (`ClaudeApiClient`, `TelegramBotAdapter`, `ResendEmailAdapter`, `SireneApiClient`) + Application (`MessageRouter`, `App.kt`).
 
-### 19.3 — MessagingPort callback support ✅ DONE
-
-Added `IncomingCallback` data class and `onCallback`/`answerCallback` methods to `MessagingPort`. Updated `TelegramBotAdapter` with stubs (full rewrite in 19.4). Updated all 6 test stub implementations (`FakeMessagingPort`, `StubMessagingPort` ×2, `VatStubMessagingPort`, `SpyMessagingPort`, `CapturingMessagingPort`). Build and ktlintCheck pass.
-
----
-
-### 19.4 — TelegramBotAdapter.kt rewrite ✅ DONE
-
-Rewrote `TelegramBotAdapter.kt`: zero `dev.inmo` imports, constructor takes `TelegramApiClient`/`UserRepository`/`webhookUrl`/`webhookSecret`/`scope`. Webhook handler verifies secret, parses `TgUpdate`, dispatches async, responds 200 immediately. `sendButtons` builds inline keyboard JSON. `setPersistentMenu` stores `JsonElement` (was `ReplyKeyboardMarkup`). `start()` calls `setWebhook`; `stop()` calls `deleteWebhook` + cancels scope. Also updated `App.kt` to use new constructor, register `/webhook/telegram` endpoint, add `onCallback` no-op, fix lifecycle (no botJob; `Thread.currentThread().join()`). Reads `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` from env (fail-fast). 12 unit tests in `TelegramBotAdapterTest.kt` covering all acceptance criteria. All 408 tests pass.
-
-**Note:** App.kt wiring changes (Phase 19.5 core) were included here because the constructor change required it to compile. Remaining 19.5 work: remove `dev.inmo:tgbotapi` from `build.gradle.kts`, update `CLAUDE.md` Bot Framework row.
-
----
-
-### 19.5 — App.kt wiring and dependency removal ✅ DONE
-
-App.kt was fully wired in 19.4. Remaining work completed: removed `dev.inmo:tgbotapi` from `build.gradle.kts` (and `telegramBotApiVersion` variable), updated `CLAUDE.md` Bot Framework row to "Direct Telegram Bot API (HTTP + kotlinx-serialization, webhook)". Build and ktlintCheck pass; no `dev.inmo` imports remain in source.
-
----
-
-### 19.6 — Deploy and verify
-
-**What:** Deploy to Fly.io, set new env vars, verify end-to-end.
-
-**Layer:** Operations.
-
-**Spec ref:** telegram-direct-api-spec.md §§10, 12 items 7–10.
-
-**Steps:**
-1. `fly secrets set TELEGRAM_WEBHOOK_URL=https://mona-late-tree-7299.fly.dev/webhook/telegram TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32) -a mona-late-tree-7299`
-2. Deploy via `fly deploy`.
-3. Also run the pending SIRENE secrets rotation (see Note above).
-4. Manual smoke test: send message → confirm response; press inline keyboard button → confirm no 30s spinner; send `/start` → confirm onboarding flow works.
+**Spec ref:** `specs/logging-spec.md` §§3–5.
 
 **Acceptance criteria:**
-- Bot responds to messages via webhook (no long-polling connection in logs).
-- Inline keyboard button presses are acknowledged (answerCallbackQuery called).
-- `/health` returns 200.
-- `/webhook/resend` still handles bounce events.
+- `build.gradle.kts` adds `org.slf4j:slf4j-api:2.0.16` and `org.slf4j:slf4j-simple:2.0.16`
+- Logger pattern is `private val log = LoggerFactory.getLogger(ClassName::class.java)` (instance field, not companion)
+- `ClaudeApiClient.kt`: L1 (non-200 WARN), L2 (rate-limit retry WARN), L3 (retries exhausted ERROR), L4 (request exception ERROR), L5 (parse failure ERROR)
+- `MessageRouter.kt`: L6 (domain error returned to user WARN, includes `userId`)
+- `TelegramBotAdapter.kt`: L7 (webhook exception ERROR), L8 (send/document failure WARN)
+- `ResendEmailAdapter.kt`: L9 (delivery failure WARN with status + truncated body ≤500 chars)
+- `SireneApiClient.kt`: L10 (lookup failure WARN)
+- `App.kt`: L11 (scheduled job exception ERROR — replaces 4 empty `catch (_: Exception) {}` blocks), L12 (startup INFO with webhook URL + db path), L13 (shutdown INFO via shutdown hook)
+- No PII logged (no message content, no names, no IBANs — only `UserId`, HTTP status codes, error messages)
+- Happy path produces zero log lines
+- `./gradlew build && ./gradlew ktlintCheck` pass
+- No golden tests needed (no LLM tools or action types changed)
+
+---
+
+## Phase 21 — Loop Efficiency: Haiku Context Pre-pass
+
+**What:** Implement the Haiku call in `loop.sh` that consumes `.codebase-index.txt` and `.spec-toc.txt` (already generated by `generate_codebase_index()`) to produce a JSON context manifest. Inject only manifest-selected files/sections into the main model prompt.
+
+**Layer:** Tooling (`loop.sh`). No application code changes.
+
+**Spec ref:** `specs/loop-efficiency-spec.md` §Changes, Change 6 (Phase C).
+
+**Acceptance criteria:**
+- `loop.sh` calls Haiku with codebase index + spec TOC + current phase description after `generate_codebase_index()`
+- Haiku returns JSON with `spec_sections` and `source_files` arrays
+- `loop.sh` reads only manifest-selected files/sections into the main prompt
+- Fallback: if Haiku call fails or returns invalid JSON, fall through to current full-prompt behavior without crashing
+- Telemetry row records whether Haiku pre-pass was used
+
+---
+
+## Phase 22 — Deploy Workflow: Deployment Annotation
+
+**What:** Add the missing annotation step to `deploy.yml` that creates a GitHub deployment status with the deployed commit SHA.
+
+**Layer:** CI/CD (`.github/workflows/deploy.yml`).
+
+**Spec ref:** `specs/ci-cd-spec.md` §4 step 5.
+
+**Acceptance criteria:**
+- `deploy.yml` has a final step that records a GitHub deployment annotation with `github.sha`
+- Step uses `continue-on-error: true` so annotation failure does not fail the deploy job
+- `fly deploy` and health check steps remain unchanged
+- `./gradlew build && ./gradlew ktlintCheck` pass (N/A — YAML only)
 
 ---
 
 ## Prevention Rules
 
-1. **No floating point for money.** All amounts in `Cents` (Long).
-2. **Domain purity.** Any import of Exposed, Telegram, or HTTP client in `domain/` is a build failure.
-3. **No raw primitives for domain concepts.** Use `InvoiceId`, `UserId`, `Cents`, `Siren`, etc.
-4. **State transitions via aggregate only.** Never `invoice.copy(status = ...)` outside `Invoice.kt`.
-5. **Factory for creation.** Never construct `Invoice(...)` directly for new invoices — use `Invoice.create()`.
-6. **Events returned, not published.** Aggregate methods return `TransitionResult`. Application layer dispatches.
+1. **Domain purity.** Any import of Exposed, Telegram, HTTP client, or SLF4J in `domain/` is a build failure.
+2. **No unapproved libraries.** Check CLAUDE.md tech stack before adding any dependency.
+3. **Application use cases: max ~30 lines.** Longer means business logic leaked into the wrong layer.
+4. **Golden tests gate prompt changes.** Never deploy a prompt change without running the golden suite.
+5. **FK-aware deletion order.** Follow the sequence in `DeleteAccount.execute()` when changing GDPR deletion.
+6. **Infrastructure DTOs stay in infrastructure.** Telegram/Resend/SIRENE models never leak into domain or application layers. Convert at the adapter boundary.
 7. **URSSAF = cash basis.** Revenue computed from `paidDate`, never `issueDate`.
-8. **Application use cases: max ~30 lines.** Longer means business logic in the wrong layer.
-9. **Last 3 messages only.** No separate "last action" pointer. LLM resolves from conversation history.
-10. **No unapproved libraries.** Check CLAUDE.md tech stack before adding any dependency.
-11. **Golden tests gate prompt changes.** Never deploy a prompt change without running the golden suite.
-12. **FK-aware deletion order.** Follow the sequence in `DeleteAccount.execute()` when changing GDPR deletion.
-13. **Infrastructure DTOs stay in infrastructure.** Telegram/Resend/SIRENE models never leak into domain or application layers. Convert at the adapter boundary.
+8. **Last 3 messages only.** No separate "last action" pointer. LLM resolves from conversation history.
