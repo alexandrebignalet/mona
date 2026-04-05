@@ -29,37 +29,28 @@ internal fun interface SireneHttpExecutor {
     suspend fun get(url: String): SireneHttpResponse
 }
 
+@JvmInline
+internal value class SireneApiKey(val value: String)
+
 internal class RealSireneHttpExecutor(
-    private val tokenProvider: SireneTokenProvider,
+    private val sireneApiKey: SireneApiKey,
 ) : SireneHttpExecutor {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     override suspend fun get(url: String): SireneHttpResponse {
-        val token = tokenProvider.getToken()
-        val response = doGet(url, token)
-        if (response.statusCode == 401) {
-            tokenProvider.invalidate()
-            val freshToken = tokenProvider.getToken()
-            return doGet(url, freshToken)
-        }
-        return response
-    }
-
-    private suspend fun doGet(
-        url: String,
-        token: String,
-    ): SireneHttpResponse =
-        withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
             val request =
                 HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("Authorization", "Bearer $token")
+                    .header("X-INSEE-Api-Key-Integration", sireneApiKey.value)
                     .header("Accept", "application/json")
                     .GET()
                     .build()
             val response = client.send(request, BodyHandlers.ofString())
             SireneHttpResponse(response.statusCode(), response.body())
         }
+    }
+
 }
 
 class SireneApiClient internal constructor(
@@ -69,19 +60,16 @@ class SireneApiClient internal constructor(
     private val log = LoggerFactory.getLogger(SireneApiClient::class.java)
 
     companion object {
-        const val BASE_URL = "https://api.insee.fr/entreprises/sirene/V3.11"
+        const val BASE_URL = "https://api.insee.fr/api-sirene/3.11/"
 
         private val json = Json { ignoreUnknownKeys = true }
 
         fun fromEnv(): SireneApiClient {
-            val clientId =
-                System.getenv("SIRENE_CLIENT_ID")
-                    ?: error("SIRENE_CLIENT_ID environment variable is not set")
-            val clientSecret =
-                System.getenv("SIRENE_CLIENT_SECRET")
-                    ?: error("SIRENE_CLIENT_SECRET environment variable is not set")
-            val tokenProvider = SireneTokenProvider.create(clientId, clientSecret)
-            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(tokenProvider))
+            val sireneApiKey = SireneApiKey(
+                    System.getenv("SIRENE_API_KEY") ?: error("SIRENE_API_KEY environment variable is not set")
+                )
+
+            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(sireneApiKey))
         }
     }
 
