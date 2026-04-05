@@ -46,33 +46,9 @@ Rewrote `TelegramBotAdapter.kt`: zero `dev.inmo` imports, constructor takes `Tel
 
 ---
 
-### 19.5 — App.kt wiring and dependency removal
+### 19.5 — App.kt wiring and dependency removal ✅ DONE
 
-**What:** Update `src/main/kotlin/mona/App.kt`:
-- Create `TelegramApiClient(telegramToken)`, pass to `TelegramBotAdapter`.
-- Read `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` from env (`error()` if missing).
-- Pass `webhookUrl` and `webhookSecret` to adapter constructor.
-- Register `POST /webhook/telegram` on the existing `HttpServer` (same pattern as `/webhook/resend`).
-- Register `onCallback` handler (no-op stub, ready for future use case wiring).
-- Replace `botJob` lifecycle: `start()` registers webhook and returns; no `botJob.join()`. Block main thread with `Thread.currentThread().join()`.
-- Shutdown hook: call `telegramAdapter.stop()` (deleteWebhook), then stop HttpServer, then cancel scope.
-
-Update `build.gradle.kts`:
-- Remove `dev.inmo:tgbotapi` dependency entirely.
-
-Update `CLAUDE.md` Bot Framework row: change to "Direct Telegram Bot API (HTTP + kotlinx-serialization, webhook)".
-
-**Layer:** Infrastructure (wiring), build config.
-
-**Spec ref:** telegram-direct-api-spec.md §§9, 10, 12 items 6–8.
-
-**Acceptance criteria:**
-- `dev.inmo:tgbotapi` no longer in dependency tree (`./gradlew dependencies | grep inmo` returns nothing).
-- App fails fast with clear error if `TELEGRAM_WEBHOOK_URL` or `TELEGRAM_WEBHOOK_SECRET` are missing.
-- `/webhook/telegram` endpoint registered on HttpServer.
-- Shutdown hook calls `deleteWebhook`.
-- `./gradlew build && ./gradlew ktlintCheck` passes.
-- No golden test regressions (LLM layer unchanged).
+App.kt was fully wired in 19.4. Remaining work completed: removed `dev.inmo:tgbotapi` from `build.gradle.kts` (and `telegramBotApiVersion` variable), updated `CLAUDE.md` Bot Framework row to "Direct Telegram Bot API (HTTP + kotlinx-serialization, webhook)". Build and ktlintCheck pass; no `dev.inmo` imports remain in source.
 
 ---
 

@@ -6,7 +6,7 @@
 |-------|-----------|-------|
 | Runtime | Kotlin (JVM 21, coroutines) | Sealed classes for FSM, value classes for Cents/Siren |
 | Build | Gradle (Kotlin DSL) | Shadow plugin for fat JAR |
-| Bot Framework | TelegramBotAPI (InsanusMokrassar) | Behind `MessagingPort` abstraction |
+| Bot Framework | Direct Telegram Bot API (HTTP + kotlinx-serialization, webhook) | Behind `MessagingPort` abstraction |
 | LLM | Claude Sonnet (tool use / function calling) | NL parsing → structured actions |
 | PDF | Apache PDFBox | Pure JVM, no native deps |
 | Database | SQLite (sqlite-jdbc + Exposed ORM) | Single-file, type-safe queries |

@@ -17,7 +17,6 @@ kotlin {
 }
 
 val exposedVersion = "0.56.0"
-val telegramBotApiVersion = "18.2.2"
 val coroutinesVersion = "1.9.0"
 
 dependencies {
@@ -31,9 +30,6 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
     implementation("org.xerial:sqlite-jdbc:3.47.1.0")
-
-    // Telegram Bot API
-    implementation("dev.inmo:tgbotapi:$telegramBotApiVersion")
 
     // PDF generation
     implementation("org.apache.pdfbox:pdfbox:3.0.3")
