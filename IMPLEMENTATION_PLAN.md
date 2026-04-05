@@ -20,19 +20,9 @@ Phases 1.1–18.1 done. See git log for details.
 
 Replace `dev.inmo:tgbotapi` long-polling with direct HTTP calls to `api.telegram.org` using webhooks. Spec: `specs/telegram-direct-api-spec.md`.
 
-### 19.1 — TelegramModels.kt
+### 19.1 — TelegramModels.kt ✅ DONE
 
-**What:** Create `src/main/kotlin/mona/infrastructure/telegram/TelegramModels.kt` with kotlinx-serializable DTOs: `TgUpdate`, `TgMessage`, `TgChat`, `TgCallbackQuery`, `TgUser`, `TgResponse<T>`. All fields use `@SerialName` for snake_case mapping. Nullable optional fields. Companion `Json` instance with `ignoreUnknownKeys = true`.
-
-**Layer:** Infrastructure (telegram).
-
-**Spec ref:** telegram-direct-api-spec.md §8.
-
-**Acceptance criteria:**
-- All six DTOs compile and are `@Serializable`.
-- Round-trip test: serialize and deserialize a sample `TgUpdate` with both `message` and `callback_query` variants.
-- Unknown JSON fields are silently ignored (test with extra fields in input).
-- `./gradlew build && ./gradlew ktlintCheck` passes.
+Created `TelegramModels.kt` with six `@Serializable` DTOs (`TgUpdate`, `TgMessage`, `TgChat`, `TgCallbackQuery`, `TgUser`, `TgResponse<T>`). Added `kotlin("plugin.serialization")` to `build.gradle.kts` (was missing — the library was present but the compiler plugin was not). Tests: round-trip message update, round-trip callback_query update, unknown-field ignoring, null-text message, null-data callback. All pass.
 
 ---
 
