@@ -1,19 +1,15 @@
 package mona.infrastructure.telegram
 
-import dev.inmo.tgbotapi.bot.RequestsExecutor
-import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
-import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
-import dev.inmo.tgbotapi.extensions.behaviour_builder.telegramBotWithBehaviourAndLongPolling
-import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onText
-import dev.inmo.tgbotapi.requests.abstracts.asMultipartFile
-import dev.inmo.tgbotapi.types.IdChatIdentifier
-import dev.inmo.tgbotapi.types.buttons.InlineKeyboardButtons.CallbackDataInlineKeyboardButton
-import dev.inmo.tgbotapi.types.buttons.InlineKeyboardMarkup
-import dev.inmo.tgbotapi.types.buttons.ReplyKeyboardMarkup
-import dev.inmo.tgbotapi.types.buttons.SimpleKeyboardButton
-import dev.inmo.tgbotapi.types.toChatId
+import com.sun.net.httpserver.HttpExchange
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import mona.domain.model.UserId
 import mona.domain.port.Button
 import mona.domain.port.IncomingCallback
@@ -25,17 +21,16 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 class TelegramBotAdapter(
-    private val token: String,
+    private val apiClient: TelegramApiClient,
     private val userRepository: UserRepository,
-    private val coroutineScope: CoroutineScope,
+    private val webhookUrl: String,
+    private val webhookSecret: String,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : MessagingPort {
     private val messageHandlers = CopyOnWriteArrayList<suspend (IncomingMessage) -> Unit>()
     private val callbackHandlers = CopyOnWriteArrayList<suspend (IncomingCallback) -> Unit>()
     private val chatIdCache = ConcurrentHashMap<UserId, Long>()
-    private val persistentKeyboards = ConcurrentHashMap<UserId, ReplyKeyboardMarkup>()
-
-    @Volatile
-    private var executor: RequestsExecutor? = null
+    private val persistentKeyboards = ConcurrentHashMap<UserId, kotlinx.serialization.json.JsonElement>()
 
     override suspend fun sendMessage(
         userId: UserId,
@@ -43,7 +38,7 @@ class TelegramBotAdapter(
     ) {
         val chatId = resolveChatId(userId) ?: return
         val keyboard = persistentKeyboards[userId]
-        executor?.sendTextMessage(chatId.toChatId(), text, replyMarkup = keyboard)
+        apiClient.sendMessage(chatId, text, keyboard)
     }
 
     override suspend fun sendDocument(
@@ -53,8 +48,7 @@ class TelegramBotAdapter(
         caption: String?,
     ) {
         val chatId = resolveChatId(userId) ?: return
-        val multipart = fileBytes.asMultipartFile(fileName)
-        executor?.sendDocument(chatId.toChatId(), multipart, text = caption)
+        apiClient.sendDocument(chatId, fileBytes, fileName, caption)
     }
 
     override suspend fun sendButtons(
@@ -63,11 +57,27 @@ class TelegramBotAdapter(
         buttons: List<Button>,
     ) {
         val chatId = resolveChatId(userId) ?: return
-        val keyboard =
-            InlineKeyboardMarkup(
-                listOf(buttons.map { CallbackDataInlineKeyboardButton(it.text, it.callbackData) }),
-            )
-        executor?.sendTextMessage(chatId.toChatId(), text, replyMarkup = keyboard)
+        val inlineKeyboard =
+            buildJsonObject {
+                put(
+                    "inline_keyboard",
+                    buildJsonArray {
+                        add(
+                            buildJsonArray {
+                                buttons.forEach { button ->
+                                    add(
+                                        buildJsonObject {
+                                            put("text", button.text)
+                                            put("callback_data", button.callbackData)
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                    },
+                )
+            }
+        apiClient.sendMessage(chatId, text, inlineKeyboard)
     }
 
     override suspend fun setPersistentMenu(
@@ -75,11 +85,20 @@ class TelegramBotAdapter(
         items: List<MenuItem>,
     ) {
         val keyboard =
-            ReplyKeyboardMarkup(
-                keyboard = listOf(items.map { SimpleKeyboardButton(it.text) }),
-                resizeKeyboard = true,
-                persistent = true,
-            )
+            buildJsonObject {
+                put(
+                    "keyboard",
+                    buildJsonArray {
+                        add(
+                            buildJsonArray {
+                                items.forEach { item -> add(item.text) }
+                            },
+                        )
+                    },
+                )
+                put("resize_keyboard", true)
+                put("is_persistent", true)
+            }
         persistentKeyboards[userId] = keyboard
     }
 
@@ -95,28 +114,73 @@ class TelegramBotAdapter(
         callbackQueryId: String,
         text: String?,
     ) {
-        // No-op stub — replaced in 19.4 TelegramBotAdapter rewrite
+        apiClient.answerCallbackQuery(callbackQueryId, text)
     }
 
-    suspend fun start(): Job {
-        val (exec, job) =
-            telegramBotWithBehaviourAndLongPolling(token, coroutineScope) {
-                onText { message ->
-                    val telegramId =
-                        (message.chat.id as? IdChatIdentifier)?.chatId?.long ?: return@onText
+    fun handleWebhook(exchange: HttpExchange) {
+        try {
+            val secretHeader = exchange.requestHeaders.getFirst("X-Telegram-Bot-Api-Secret-Token")
+            if (secretHeader != webhookSecret) {
+                exchange.sendResponseHeaders(401, 0)
+                exchange.responseBody.close()
+                return
+            }
+
+            val body = exchange.requestBody.bufferedReader().readText()
+
+            // Respond 200 immediately — Telegram retries on non-2xx
+            exchange.sendResponseHeaders(200, 0)
+            exchange.responseBody.close()
+
+            val update =
+                runCatching {
+                    telegramJson.decodeFromString(TgUpdate.serializer(), body)
+                }.getOrNull() ?: return
+
+            scope.launch {
+                update.message?.let { message ->
+                    val text = message.text ?: return@let
+                    val telegramId = message.chat.id
                     val user = userRepository.findByTelegramId(telegramId)
                     user?.let { chatIdCache[it.id] = telegramId }
                     val incoming =
                         IncomingMessage(
                             telegramId = telegramId,
-                            text = message.content.text,
+                            text = text,
                             userId = user?.id,
                         )
                     messageHandlers.forEach { it(incoming) }
                 }
+                update.callbackQuery?.let { callbackQuery ->
+                    val data = callbackQuery.data ?: return@let
+                    val telegramId = callbackQuery.from.id
+                    val user = userRepository.findByTelegramId(telegramId)
+                    user?.let { chatIdCache[it.id] = telegramId }
+                    val incoming =
+                        IncomingCallback(
+                            telegramId = telegramId,
+                            callbackQueryId = callbackQuery.id,
+                            data = data,
+                            userId = user?.id,
+                        )
+                    callbackHandlers.forEach { it(incoming) }
+                }
             }
-        executor = exec
-        return job
+        } catch (_: Exception) {
+            runCatching {
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.close()
+            }
+        }
+    }
+
+    suspend fun start() {
+        apiClient.setWebhook(webhookUrl, webhookSecret, listOf("message", "callback_query"))
+    }
+
+    suspend fun stop() {
+        apiClient.deleteWebhook()
+        scope.cancel()
     }
 
     private suspend fun resolveChatId(userId: UserId): Long? =

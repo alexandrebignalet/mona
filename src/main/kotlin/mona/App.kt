@@ -52,6 +52,7 @@ import mona.infrastructure.email.ResendWebhookHandler
 import mona.infrastructure.llm.ClaudeApiClient
 import mona.infrastructure.pdf.PdfGenerator
 import mona.infrastructure.sirene.SireneApiClient
+import mona.infrastructure.telegram.TelegramApiClient
 import mona.infrastructure.telegram.TelegramBotAdapter
 import java.net.InetSocketAddress
 import java.time.Duration
@@ -99,7 +100,20 @@ fun main() {
     // Coroutine scope for the application
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    val telegramAdapter = TelegramBotAdapter(telegramToken, userRepository, scope)
+    val telegramApiClient = TelegramApiClient.create(telegramToken)
+    val webhookUrl =
+        System.getenv("TELEGRAM_WEBHOOK_URL")
+            ?: error("TELEGRAM_WEBHOOK_URL environment variable is not set")
+    val webhookSecret =
+        System.getenv("TELEGRAM_WEBHOOK_SECRET")
+            ?: error("TELEGRAM_WEBHOOK_SECRET environment variable is not set")
+    val telegramAdapter =
+        TelegramBotAdapter(
+            apiClient = telegramApiClient,
+            userRepository = userRepository,
+            webhookUrl = webhookUrl,
+            webhookSecret = webhookSecret,
+        )
 
     // Event dispatcher
     val eventDispatcher = EventDispatcher()
@@ -270,31 +284,39 @@ fun main() {
             exchange.responseBody.close()
         }
     }
+    healthServer.createContext("/webhook/telegram") { exchange ->
+        if (exchange.requestMethod == "POST") {
+            telegramAdapter.handleWebhook(exchange)
+        } else {
+            exchange.sendResponseHeaders(405, 0)
+            exchange.responseBody.close()
+        }
+    }
     healthServer.start()
 
-    // Register message handler and start bot
-    val botJob =
-        runBlocking {
-            telegramAdapter.onMessage { message ->
-                message.userId?.let { userId ->
-                    if (menuInitialized.add(userId.value)) {
-                        telegramAdapter.setPersistentMenu(userId, MENU_ITEMS)
-                    }
+    // Register handlers then start (registers webhook with Telegram)
+    runBlocking {
+        telegramAdapter.onMessage { message ->
+            message.userId?.let { userId ->
+                if (menuInitialized.add(userId.value)) {
+                    telegramAdapter.setPersistentMenu(userId, MENU_ITEMS)
                 }
-                router.handle(message)
             }
-            telegramAdapter.start()
+            router.handle(message)
         }
+        telegramAdapter.onCallback { }
+        telegramAdapter.start()
+    }
 
     // Graceful shutdown
     Runtime.getRuntime().addShutdownHook(
         Thread {
             healthServer.stop(1)
-            botJob.cancel()
+            runBlocking { telegramAdapter.stop() }
             scope.cancel()
         },
     )
 
-    // Block main thread until bot stops
-    runBlocking { botJob.join() }
+    // Block main thread — webhook is served by HttpServer
+    Thread.currentThread().join()
 }

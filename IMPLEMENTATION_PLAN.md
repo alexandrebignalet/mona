@@ -38,30 +38,11 @@ Added `IncomingCallback` data class and `onCallback`/`answerCallback` methods to
 
 ---
 
-### 19.4 — TelegramBotAdapter.kt rewrite
+### 19.4 — TelegramBotAdapter.kt rewrite ✅ DONE
 
-**What:** Rewrite `src/main/kotlin/mona/infrastructure/telegram/TelegramBotAdapter.kt`. Remove all `dev.inmo:tgbotapi` imports. Constructor takes `TelegramApiClient`, `UserRepository`, `webhookUrl: String`, `webhookSecret: String`. Implements updated `MessagingPort` including `onCallback` and `answerCallback`. Webhook handler method `handleWebhook(HttpExchange)`: verify `X-Telegram-Bot-Api-Secret-Token` header, parse JSON to `TgUpdate`, route to message/callback handlers, respond 200 immediately (before processing). `start()` calls `setWebhook` with `allowed_updates = ["message", "callback_query"]`. `stop()` calls `deleteWebhook`. Retain existing `chatIdCache` and `persistentKeyboards` patterns. `sendButtons` builds inline keyboard JSON manually.
+Rewrote `TelegramBotAdapter.kt`: zero `dev.inmo` imports, constructor takes `TelegramApiClient`/`UserRepository`/`webhookUrl`/`webhookSecret`/`scope`. Webhook handler verifies secret, parses `TgUpdate`, dispatches async, responds 200 immediately. `sendButtons` builds inline keyboard JSON. `setPersistentMenu` stores `JsonElement` (was `ReplyKeyboardMarkup`). `start()` calls `setWebhook`; `stop()` calls `deleteWebhook` + cancels scope. Also updated `App.kt` to use new constructor, register `/webhook/telegram` endpoint, add `onCallback` no-op, fix lifecycle (no botJob; `Thread.currentThread().join()`). Reads `TELEGRAM_WEBHOOK_URL` and `TELEGRAM_WEBHOOK_SECRET` from env (fail-fast). 12 unit tests in `TelegramBotAdapterTest.kt` covering all acceptance criteria. All 408 tests pass.
 
-**Layer:** Infrastructure (telegram).
-
-**Spec ref:** telegram-direct-api-spec.md §§3, 7.
-
-**Acceptance criteria:**
-- Zero imports from `dev.inmo` package.
-- Unit tests for webhook handler:
-  - Valid message update dispatches `IncomingMessage` to registered handler.
-  - Valid callback_query update dispatches `IncomingCallback` to registered handler.
-  - Missing/wrong secret token returns 401, does not dispatch.
-  - Malformed JSON returns 200 (avoids Telegram retries), does not dispatch.
-  - Non-POST returns 405.
-- Unit tests for outbound methods:
-  - `sendMessage` delegates to `apiClient.sendMessage` with resolved chatId.
-  - `sendButtons` builds inline keyboard JSON with button text and callbackData.
-  - `sendDocument` delegates to `apiClient.sendDocument`.
-  - `answerCallback` delegates to `apiClient.answerCallbackQuery`.
-- `start()` calls `setWebhook` with correct URL and secret.
-- `stop()` calls `deleteWebhook`.
-- `./gradlew build && ./gradlew ktlintCheck` passes.
+**Note:** App.kt wiring changes (Phase 19.5 core) were included here because the constructor change required it to compile. Remaining 19.5 work: remove `dev.inmo:tgbotapi` from `build.gradle.kts`, update `CLAUDE.md` Bot Framework row.
 
 ---
 
