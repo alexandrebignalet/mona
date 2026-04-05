@@ -26,23 +26,9 @@ Created `TelegramModels.kt` with six `@Serializable` DTOs (`TgUpdate`, `TgMessag
 
 ---
 
-### 19.2 — TelegramApiClient.kt
+### 19.2 — TelegramApiClient.kt ✅ DONE
 
-**What:** Create `src/main/kotlin/mona/infrastructure/telegram/TelegramApiClient.kt`. Raw HTTP client for Telegram Bot API. Methods: `sendMessage`, `sendDocument`, `answerCallbackQuery`, `setWebhook`, `deleteWebhook`. Internal `fun interface TelegramHttpExecutor` for test seam (same pattern as `ClaudeHttpExecutor`, `SireneHttpExecutor`). `TgResult<T>` sealed class (`Ok`/`Err`) for Telegram's `{ ok, result }` envelope. `sendDocument` uses multipart/form-data; all others use JSON POST. Pass `parse_mode = "Markdown"` on `sendMessage`. All HTTP calls in `withContext(Dispatchers.IO)`.
-
-**Layer:** Infrastructure (telegram).
-
-**Spec ref:** telegram-direct-api-spec.md §6.
-
-**Acceptance criteria:**
-- Unit tests with fake `TelegramHttpExecutor`:
-  - `sendMessage` builds correct JSON payload (chat_id, text, parse_mode, reply_markup).
-  - `sendDocument` builds correct multipart body with file bytes + caption.
-  - `answerCallbackQuery` sends callback_query_id and optional text.
-  - `setWebhook` sends url, secret_token, allowed_updates.
-  - Success responses parse to `TgResult.Ok`.
-  - Error responses (ok=false) parse to `TgResult.Err` with code and description.
-- `./gradlew build && ./gradlew ktlintCheck` passes.
+Created `TelegramApiClient.kt` with `TelegramHttpExecutor` interface (two-method: `post`/`postMultipart`) for test seam, `RealTelegramHttpExecutor` wrapping `java.net.http.HttpClient`, and `TgResult<T>` sealed class. Methods: `sendMessage` (JSON POST, `parse_mode=Markdown`, optional `reply_markup`), `sendDocument` (multipart/form-data with `MultipartField` sealed class), `answerCallbackQuery`, `setWebhook`, `deleteWebhook`. All HTTP in `withContext(Dispatchers.IO)`. Unit tests in `TelegramApiClientTest.kt` cover all methods, optional fields, success/error response parsing, and malformed JSON. Note: `fun interface` not possible for the executor because two abstract methods are required; used regular `interface` instead.
 
 ---
 
