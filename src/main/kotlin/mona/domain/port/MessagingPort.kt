@@ -8,6 +8,13 @@ data class IncomingMessage(
     val userId: UserId?,
 )
 
+data class IncomingCallback(
+    val telegramId: Long,
+    val callbackQueryId: String,
+    val data: String,
+    val userId: UserId?,
+)
+
 data class Button(
     val text: String,
     val callbackData: String,
@@ -42,4 +49,11 @@ interface MessagingPort {
     )
 
     suspend fun onMessage(handler: suspend (IncomingMessage) -> Unit)
+
+    suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit)
+
+    suspend fun answerCallback(
+        callbackQueryId: String,
+        text: String? = null,
+    )
 }

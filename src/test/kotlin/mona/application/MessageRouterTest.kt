@@ -45,6 +45,7 @@ import mona.domain.port.ClientRepository
 import mona.domain.port.ConversationMessage
 import mona.domain.port.ConversationRepository
 import mona.domain.port.CryptoPort
+import mona.domain.port.IncomingCallback
 import mona.domain.port.IncomingMessage
 import mona.domain.port.InvoiceRepository
 import mona.domain.port.LlmPort
@@ -230,6 +231,13 @@ private class FakeMessagingPort : MessagingPort {
     ) {}
 
     override suspend fun onMessage(handler: suspend (IncomingMessage) -> Unit) {}
+
+    override suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit) {}
+
+    override suspend fun answerCallback(
+        callbackQueryId: String,
+        text: String?,
+    ) {}
 }
 
 private class StubLlmPort(private val response: DomainResult<LlmResponse>) : LlmPort {

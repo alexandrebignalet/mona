@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import mona.domain.model.UserId
 import mona.domain.port.Button
+import mona.domain.port.IncomingCallback
 import mona.domain.port.IncomingMessage
 import mona.domain.port.MenuItem
 import mona.domain.port.MessagingPort
@@ -29,6 +30,7 @@ class TelegramBotAdapter(
     private val coroutineScope: CoroutineScope,
 ) : MessagingPort {
     private val messageHandlers = CopyOnWriteArrayList<suspend (IncomingMessage) -> Unit>()
+    private val callbackHandlers = CopyOnWriteArrayList<suspend (IncomingCallback) -> Unit>()
     private val chatIdCache = ConcurrentHashMap<UserId, Long>()
     private val persistentKeyboards = ConcurrentHashMap<UserId, ReplyKeyboardMarkup>()
 
@@ -83,6 +85,17 @@ class TelegramBotAdapter(
 
     override suspend fun onMessage(handler: suspend (IncomingMessage) -> Unit) {
         messageHandlers.add(handler)
+    }
+
+    override suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit) {
+        callbackHandlers.add(handler)
+    }
+
+    override suspend fun answerCallback(
+        callbackQueryId: String,
+        text: String?,
+    ) {
+        // No-op stub — replaced in 19.4 TelegramBotAdapter rewrite
     }
 
     suspend fun start(): Job {

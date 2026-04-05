@@ -17,6 +17,7 @@ import mona.domain.model.PaidInvoiceSnapshot
 import mona.domain.model.UserId
 import mona.domain.port.Button
 import mona.domain.port.ClientRepository
+import mona.domain.port.IncomingCallback
 import mona.domain.port.IncomingMessage
 import mona.domain.port.InvoiceRepository
 import mona.domain.port.MenuItem
@@ -174,6 +175,13 @@ private class CapturingMessagingPort : MessagingPort {
     ) {}
 
     override suspend fun onMessage(handler: suspend (IncomingMessage) -> Unit) {}
+
+    override suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit) {}
+
+    override suspend fun answerCallback(
+        callbackQueryId: String,
+        text: String?,
+    ) {}
 }
 
 class PaymentCheckInJobTest {

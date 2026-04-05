@@ -32,22 +32,9 @@ Created `TelegramApiClient.kt` with `TelegramHttpExecutor` interface (two-method
 
 ---
 
-### 19.3 — MessagingPort callback support
+### 19.3 — MessagingPort callback support ✅ DONE
 
-**What:** Add to `src/main/kotlin/mona/domain/port/MessagingPort.kt`:
-- `data class IncomingCallback(telegramId: Long, callbackQueryId: String, data: String, userId: UserId?)`
-- `suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit)` on `MessagingPort`
-- `suspend fun answerCallback(callbackQueryId: String, text: String? = null)` on `MessagingPort`
-
-**Layer:** Domain (port).
-
-**Spec ref:** telegram-direct-api-spec.md §5.
-
-**Acceptance criteria:**
-- `IncomingCallback` is a plain data class with no infrastructure imports.
-- `MessagingPort` interface has the 3 new members.
-- No existing code breaks — all `MessagingPort` implementors updated in same step (done together with 19.4).
-- `./gradlew build && ./gradlew ktlintCheck` passes.
+Added `IncomingCallback` data class and `onCallback`/`answerCallback` methods to `MessagingPort`. Updated `TelegramBotAdapter` with stubs (full rewrite in 19.4). Updated all 6 test stub implementations (`FakeMessagingPort`, `StubMessagingPort` ×2, `VatStubMessagingPort`, `SpyMessagingPort`, `CapturingMessagingPort`). Build and ktlintCheck pass.
 
 ---
 

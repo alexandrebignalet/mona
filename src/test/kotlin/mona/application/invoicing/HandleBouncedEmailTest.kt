@@ -13,6 +13,7 @@ import mona.domain.model.InvoiceStatus
 import mona.domain.model.LineItem
 import mona.domain.model.PaidInvoiceSnapshot
 import mona.domain.model.UserId
+import mona.domain.port.IncomingCallback
 import mona.domain.port.InvoiceRepository
 import mona.domain.port.MessagingPort
 import java.math.BigDecimal
@@ -133,6 +134,13 @@ private class SpyMessagingPort : MessagingPort {
     ) {}
 
     override suspend fun onMessage(handler: suspend (mona.domain.port.IncomingMessage) -> Unit) {}
+
+    override suspend fun onCallback(handler: suspend (IncomingCallback) -> Unit) {}
+
+    override suspend fun answerCallback(
+        callbackQueryId: String,
+        text: String?,
+    ) {}
 }
 
 class HandleBouncedEmailTest {
