@@ -93,15 +93,18 @@ The domain layer uses DDD tactical patterns. The full reference with code is in 
 
 ### Hard Rules
 
-1. **No exceptions in domain.** Domain functions return `DomainResult<T>`, never throw. The only exception is `ArithmeticException` from `Cents` overflow (intentional — silent wraparound is worse).
-2. **No raw primitives for domain concepts.** Use `InvoiceId` not `String`, `Cents` not `Long`, `Email` not `String`, etc.
-3. **State transitions via aggregate methods only.** Call `invoice.send()`, never construct `invoice.copy(status = Sent)` from outside the aggregate.
-4. **Factory for creation.** New invoices go through `Invoice.create()`. The data class constructor is for reconstitution from persistence only.
-5. **Events returned, not published.** Aggregate methods return `TransitionResult(invoice, events)`. Application layer persists, then dispatches events.
-6. **One repository per aggregate root.** `InvoiceRepository` handles Invoice + LineItems + CreditNote. No `LineItemRepository`, no `CreditNoteRepository`.
-7. **CreditNote lives inside Invoice aggregate.** Never create or query credit notes independently.
-8. **Read-model snapshots for queries.** Revenue/URSSAF calculations use `PaidInvoiceSnapshot`, not full `Invoice` objects.
-9. **Application layer pattern:** persist → dispatch events → return result. Max ~30 lines.
+| # | Rule | Violation Example | Fix |
+|---|------|-------------------|-----|
+| 1 | Domain functions return `DomainResult<T>`, never throw (except `Cents` overflow) | `fun send(): Invoice { throw ... }` | Return `DomainResult.Err(...)` |
+| 2 | No raw primitives for domain concepts | `fun find(id: String)` | Use `InvoiceId`, `UserId`, etc. |
+| 3 | State transitions via aggregate methods only | `invoice.copy(status = Sent)` in use case | Call `invoice.send()` |
+| 4 | New aggregates use factory method. Constructor is for DB reconstitution only | `Invoice(... status = Draft ...)` in use case | Call `Invoice.create(...)` |
+| 5 | Events returned from transitions, not published inline | `messagingPort.send()` inside `Invoice.send()` | Return event in `TransitionResult` |
+| 6 | One repository per aggregate root | `CreditNoteRepository` interface | CreditNote is inside Invoice aggregate |
+| 7 | CreditNote lives inside Invoice aggregate | Querying credit notes independently | Access via `InvoiceRepository` |
+| 8 | Read-model snapshots for revenue/URSSAF queries | Passing `List<Invoice>` to `RevenueCalculation` | Use `PaidInvoiceSnapshot` |
+| 9 | Application layer: persist → dispatch events → return. Max ~30 lines | Dispatch before persist | Reorder |
+| 10 | `Cents` arithmetic uses operator overloads | `Cents(a.value + b.value)` | Use `a + b` (overflow-safe) |
 
 ### Domain Types (Quick Reference)
 
@@ -124,12 +127,12 @@ DomainResult<T> { Ok(value), Err(error: DomainError) }
 
 ## Specs
 
-Product spec: `specs/mvp-spec.md` — features, UX flows, conversation design.
-Technical spec: `specs/tech-spec.md` — architecture, data model, integrations.
+See `specs/README.md` for the full index. Read only the spec relevant to your task.
+
 Brand brief: `docs/mona-brand-brief.md` — tone, personality, voice examples.
 Project brief: `docs/mona-brief.md` — market context, competitive landscape, roadmap.
 
-Read the spec most relevant to your task. Do not read all specs upfront.
+**Golden tests:** If you modify files in `infrastructure/llm/`, `application/`, or `domain/service/`, read `specs/golden-tests.md` and follow its checklist before committing.
 
 ## Key Constraints
 
