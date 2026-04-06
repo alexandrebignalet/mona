@@ -13,3 +13,4 @@ Use this file to resolve which spec to read for a given implementation task. Rea
 | `logging-spec.md` | Minimal structured logging (SLF4J/Logback) | 20+ |
 | `cqrs-spec.md` | Generic CQRS framework module — command/query buses, middleware chains, event dispatching | 20+ |
 | `integration-tests-spec.md` | Integration test suite — every command, query, and background job tested with real infra, no LLM | — |
+| `sirene-lookup-fix.md` | Fix `lookupBySiren` to use `/siret` search endpoint so address is returned | — |

@@ -34,7 +34,7 @@ class SendInvoice(
         val user =
             userRepository.findById(command.userId)
                 ?: return DomainResult.Err(DomainError.ProfileIncomplete(listOf("user")))
-        if (user.siren == null) return DomainResult.Err(DomainError.SirenRequired())
+        if (user.siren == null) return DomainResult.Err(DomainError.SirenRequired)
 
         val invoice =
             invoiceRepository.findById(command.invoiceId)

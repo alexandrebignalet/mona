@@ -93,7 +93,7 @@ data class Invoice(
         activityType: ActivityType = this.activityType,
     ): DomainResult<Invoice> {
         if (status !is InvoiceStatus.Draft) return invalidTransition("Draft (updateDraft)")
-        if (lineItems.isEmpty()) return DomainResult.Err(DomainError.EmptyLineItems())
+        if (lineItems.isEmpty()) return DomainResult.Err(DomainError.EmptyLineItems)
         val total = lineItems.fold(Cents.ZERO) { acc, it -> acc + it.totalHt }
         if (total.isZero() || total.isNegative()) return DomainResult.Err(DomainError.NegativeAmount(total.value))
         val delayDays =
@@ -158,7 +158,7 @@ data class Invoice(
             lineItems: List<LineItem>,
             now: Instant,
         ): DomainResult<Invoice> {
-            if (lineItems.isEmpty()) return DomainResult.Err(DomainError.EmptyLineItems())
+            if (lineItems.isEmpty()) return DomainResult.Err(DomainError.EmptyLineItems)
             val total = lineItems.fold(Cents.ZERO) { acc, it -> acc + it.totalHt }
             if (total.isZero() || total.isNegative()) {
                 return DomainResult.Err(DomainError.NegativeAmount(total.value))

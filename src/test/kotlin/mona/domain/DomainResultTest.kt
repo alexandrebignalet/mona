@@ -19,7 +19,7 @@ class DomainResultTest {
 
     @Test
     fun `map on Err short-circuits`() {
-        val error = DomainError.EmptyLineItems()
+        val error = DomainError.EmptyLineItems
         val result: DomainResult<Int> = DomainResult.Err(error)
         val mapped = result.map { it * 2 }
         assertIs<DomainResult.Err>(mapped)
@@ -36,7 +36,7 @@ class DomainResultTest {
 
     @Test
     fun `flatMap short-circuits on Err`() {
-        val error = DomainError.EmptyLineItems()
+        val error = DomainError.EmptyLineItems
         val result: DomainResult<Int> = DomainResult.Err(error)
         var called = false
         val chained =

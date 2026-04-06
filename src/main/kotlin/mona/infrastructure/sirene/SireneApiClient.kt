@@ -122,18 +122,18 @@ class SireneApiClient internal constructor(
                     ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing uniteLegale in response"))
             val sirenValue = uniteLegale["siren"]?.jsonPrimitive?.content ?: requestedSiren.value
             val legalName = extractLegalName(uniteLegale)
-            val nafCode = uniteLegale["activitePrincipaleUniteLegale"]?.jsonPrimitive?.content
-            val siege = uniteLegale["etablissementSiege"]?.jsonObject
-            val siretValue =
-                siege?.get("siret")?.jsonPrimitive?.content
-                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing siret in response: $body"))
-            val address = siege["adresseEtablissement"]?.jsonObject?.let { parseAddress(it) }
+            // NAF code and NIC come from the most recent period (index 0)
+            val currentPeriod = uniteLegale["periodesUniteLegale"]?.jsonArray?.firstOrNull()?.jsonObject
+            val nafCode = currentPeriod?.get("activitePrincipaleUniteLegale")?.jsonPrimitive?.content
+            val nicSiege = currentPeriod?.get("nicSiegeUniteLegale")?.jsonPrimitive?.content
+                ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing nicSiegeUniteLegale in response"))
+            val siretValue = sirenValue + nicSiege
             DomainResult.Ok(
                 SireneResult(
                     legalName = legalName,
                     siren = Siren(sirenValue),
                     siret = Siret(siretValue),
-                    address = address,
+                    address = null, // /siren endpoint does not return address; use /siret if needed
                     activityType = nafCode?.let { nafToActivityType(it) },
                 ),
             )

@@ -11,7 +11,6 @@ import mona.infrastructure.sirene.SireneHttpResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -34,17 +33,12 @@ class SireneApiClientTest {
                           "uniteLegale": {
                             "siren": "123456789",
                             "denominationUniteLegale": "MA SOCIETE SAS",
-                            "activitePrincipaleUniteLegale": "62.01Z",
-                            "etablissementSiege": {
-                              "siret": "12345678900012",
-                              "adresseEtablissement": {
-                                "numeroVoieEtablissement": "12",
-                                "typeVoieEtablissement": "RUE",
-                                "libelleVoieEtablissement": "DE LA PAIX",
-                                "codePostalEtablissement": "75001",
-                                "libelleCommuneEtablissement": "PARIS"
+                            "periodesUniteLegale": [
+                              {
+                                "activitePrincipaleUniteLegale": "62.01Z",
+                                "nicSiegeUniteLegale": "00012"
                               }
-                            }
+                            ]
                           }
                         }
                         """.trimIndent(),
@@ -57,10 +51,7 @@ class SireneApiClientTest {
             assertEquals("123456789", data.siren.value)
             assertEquals("12345678900012", data.siret.value)
             assertEquals(ActivityType.BIC_SERVICE, data.activityType)
-            assertNotNull(data.address)
-            assertEquals("75001", data.address!!.postalCode)
-            assertEquals("PARIS", data.address!!.city)
-            assertTrue(data.address!!.street.contains("RUE"))
+            assertNull(data.address) // /siren endpoint does not return address
         }
 
     @Test
@@ -77,14 +68,12 @@ class SireneApiClientTest {
                             "siren": "987654321",
                             "nomUniteLegale": "DUPONT",
                             "prenomUsuelUniteLegale": "JEAN",
-                            "activitePrincipaleUniteLegale": "86.21Z",
-                            "etablissementSiege": {
-                              "siret": "98765432100023",
-                              "adresseEtablissement": {
-                                "codePostalEtablissement": "69001",
-                                "libelleCommuneEtablissement": "LYON"
+                            "periodesUniteLegale": [
+                              {
+                                "activitePrincipaleUniteLegale": "86.21Z",
+                                "nicSiegeUniteLegale": "00023"
                               }
-                            }
+                            ]
                           }
                         }
                         """.trimIndent(),
@@ -94,10 +83,9 @@ class SireneApiClientTest {
             assertIs<DomainResult.Ok<SireneResult>>(result)
             val data = result.value
             assertEquals("JEAN DUPONT", data.legalName)
+            assertEquals("98765432100023", data.siret.value)
             assertEquals(ActivityType.BNC, data.activityType)
-            assertNotNull(data.address)
-            assertEquals("69001", data.address!!.postalCode)
-            assertEquals("LYON", data.address!!.city)
+            assertNull(data.address) // /siren endpoint does not return address
         }
 
     @Test
@@ -214,14 +202,12 @@ class SireneApiClientTest {
                           "uniteLegale": {
                             "siren": "111111111",
                             "denominationUniteLegale": "BOULANGERIE DU COIN",
-                            "activitePrincipaleUniteLegale": "10.71C",
-                            "etablissementSiege": {
-                              "siret": "11111111100011",
-                              "adresseEtablissement": {
-                                "codePostalEtablissement": "75015",
-                                "libelleCommuneEtablissement": "PARIS"
+                            "periodesUniteLegale": [
+                              {
+                                "activitePrincipaleUniteLegale": "10.71C",
+                                "nicSiegeUniteLegale": "00011"
                               }
-                            }
+                            ]
                           }
                         }
                         """.trimIndent(),
@@ -244,14 +230,12 @@ class SireneApiClientTest {
                           "uniteLegale": {
                             "siren": "222222222",
                             "denominationUniteLegale": "CABINET LEGALIS",
-                            "activitePrincipaleUniteLegale": "69.10Z",
-                            "etablissementSiege": {
-                              "siret": "22222222200022",
-                              "adresseEtablissement": {
-                                "codePostalEtablissement": "75001",
-                                "libelleCommuneEtablissement": "PARIS"
+                            "periodesUniteLegale": [
+                              {
+                                "activitePrincipaleUniteLegale": "69.10Z",
+                                "nicSiegeUniteLegale": "00022"
                               }
-                            }
+                            ]
                           }
                         }
                         """.trimIndent(),
@@ -274,13 +258,11 @@ class SireneApiClientTest {
                           "uniteLegale": {
                             "siren": "333333333",
                             "denominationUniteLegale": "SOCIETE SANS NAF",
-                            "etablissementSiege": {
-                              "siret": "33333333300033",
-                              "adresseEtablissement": {
-                                "codePostalEtablissement": "13001",
-                                "libelleCommuneEtablissement": "MARSEILLE"
+                            "periodesUniteLegale": [
+                              {
+                                "nicSiegeUniteLegale": "00033"
                               }
-                            }
+                            ]
                           }
                         }
                         """.trimIndent(),
