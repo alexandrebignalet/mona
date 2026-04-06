@@ -17,7 +17,7 @@ package mona.golden
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.buildJsonObject
 
 ==> src/test/kotlin/mona/golden/GoldenContextTest.kt <==
 package mona.golden
@@ -46,6 +46,13 @@ package mona.application.onboarding
 import kotlinx.coroutines.runBlocking
 import mona.domain.model.ActivityType
 import mona.domain.model.DeclarationPeriodicity
+
+==> src/test/kotlin/mona/application/gdpr/ExportGdprDataTest.kt <==
+package mona.application.gdpr
+
+import kotlinx.coroutines.runBlocking
+import mona.application.revenue.ExportInvoicesCsv
+import mona.domain.model.ActivityType
 
 ==> src/test/kotlin/mona/application/MessageRouterTest.kt <==
 package mona.application
@@ -194,6 +201,27 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
 
+==> src/test/kotlin/mona/infrastructure/TelegramBotAdapterTest.kt <==
+package mona.infrastructure
+
+import com.sun.net.httpserver.Headers
+import com.sun.net.httpserver.HttpContext
+import com.sun.net.httpserver.HttpExchange
+
+==> src/test/kotlin/mona/infrastructure/TelegramModelsTest.kt <==
+package mona.infrastructure
+
+import kotlinx.serialization.encodeToString
+import mona.infrastructure.telegram.TgCallbackQuery
+import mona.infrastructure.telegram.TgChat
+
+==> src/test/kotlin/mona/infrastructure/TelegramApiClientTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+
 ==> src/test/kotlin/mona/infrastructure/SireneApiClientTest.kt <==
 package mona.infrastructure
 
@@ -228,6 +256,13 @@ package mona.infrastructure
 import mona.infrastructure.crypto.IbanCrypto
 import kotlin.test.Test
 import kotlin.test.assertEquals
+
+==> src/test/kotlin/mona/infrastructure/SireneTokenProviderTest.kt <==
+package mona.infrastructure
+
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
+import mona.infrastructure.sirene.SireneTokenProvider
 
 ==> src/test/kotlin/mona/infrastructure/ClaudeApiClientTest.kt <==
 package mona.infrastructure
@@ -333,6 +368,20 @@ package mona.application.onboarding
 import mona.domain.model.ActivityType
 import mona.domain.model.DeclarationPeriodicity
 import mona.domain.model.DomainError
+
+==> src/main/kotlin/mona/application/gdpr/DeleteAccount.kt <==
+package mona.application.gdpr
+
+import mona.domain.model.UserId
+import mona.domain.port.ClientRepository
+import mona.domain.port.ConversationRepository
+
+==> src/main/kotlin/mona/application/gdpr/ExportGdprData.kt <==
+package mona.application.gdpr
+
+import mona.application.revenue.ExportInvoicesCsv
+import mona.application.revenue.ExportInvoicesCsvCommand
+import mona.domain.model.DomainResult
 
 ==> src/main/kotlin/mona/application/urssaf/CheckVatThreshold.kt <==
 package mona.application.urssaf
@@ -551,12 +600,26 @@ import mona.domain.model.Client
 import mona.domain.model.ClientId
 import mona.domain.model.Email
 
+==> src/main/kotlin/mona/infrastructure/telegram/TelegramApiClient.kt <==
+package mona.infrastructure.telegram
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
+
+==> src/main/kotlin/mona/infrastructure/telegram/TelegramModels.kt <==
+package mona.infrastructure.telegram
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
 ==> src/main/kotlin/mona/infrastructure/telegram/TelegramBotAdapter.kt <==
 package mona.infrastructure.telegram
 
-import dev.inmo.tgbotapi.bot.RequestsExecutor
-import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
-import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
+import com.sun.net.httpserver.HttpExchange
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 ==> src/main/kotlin/mona/infrastructure/llm/ToolDefinitions.kt <==
 package mona.infrastructure.llm
@@ -576,8 +639,8 @@ import kotlinx.serialization.json.contentOrNull
 package mona.infrastructure.llm
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 
 ==> src/main/kotlin/mona/infrastructure/llm/PromptBuilder.kt <==
 package mona.infrastructure.llm
@@ -613,6 +676,13 @@ package mona.infrastructure.sirene
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+
+==> src/main/kotlin/mona/infrastructure/sirene/SireneTokenProvider.kt <==
+package mona.infrastructure.sirene
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 ==> src/main/kotlin/mona/App.kt <==
 package mona

@@ -25,7 +25,7 @@ Phases 1.1–22, 21 done. See git log for details.
 
 ---
 
-## Phase 23 — Integration Test Suite
+## Phase 23 — Integration Test Suite ✅ COMPLETED
 
 **What:** Create the `mona.integration` test package with 26 end-to-end use-case tests. Tests exercise real infrastructure (in-memory SQLite, PDFBox, AES crypto) but bypass Telegram and Claude. External HTTP APIs (Sirene, Resend) use canned JSON fixtures. Each test invokes a use case directly with structured inputs, then asserts DB state, collected messages, dispatched events, and generated PDF bytes.
 
@@ -109,12 +109,13 @@ Create `src/test/kotlin/mona/integration/` with shared infrastructure:
 - **`ResendApiContractTest`** (`email/`): 3 scenarios testing `ResendEmailAdapter` directly — success, invalid recipient, rate limit
 - **`PdfGenerationTest`** (`pdf/`): 7 scenarios with real PDFBox — valid PDF header (`%PDF`), key text extraction (invoice number, client, amounts), draft watermark, IBAN presence/absence, credit note ("Avoir"), multi-line-item
 
-**Acceptance criteria (all of Phase 23):**
-- All 26 test classes exist under `src/test/kotlin/mona/integration/` in the package structure matching the spec
-- `./gradlew test --tests "mona.integration.*"` runs all integration tests and passes
-- Full suite completes in < 10 seconds (no network calls unless `LIVE_API_TESTS=true`)
-- `SireneApiLiveTest` is skipped by default (gated behind `LIVE_API_TESTS=true`)
-- `./gradlew build && ./gradlew ktlintCheck` pass with all new test code included
+**Result:** 30 test classes, 94 tests, all passing. `SireneApiLiveTest` skipped by default. `./gradlew build && ./gradlew ktlintCheck` pass.
+
+**Issues resolved:**
+- `SireneHttpResponse` and `ResendResult` are `internal` — fake executors made `internal`, suppressed property exposure warning
+- `InvoiceStatus.Paid` is a data class requiring `(date, method)` args — fixed in `DeleteAccountTest`, `MarkPaidTest`
+- `createTestInvoice` always uses `BASE_INSTANT` for `createdAt` — `OnboardingRecoveryJobTest` adapted to pre-seed both reminders for "no duplicate" scenario
+- URSSAF periodKey for April 30 deadline = "2026-03" (March period) — corrected test fixtures
 
 ---
 

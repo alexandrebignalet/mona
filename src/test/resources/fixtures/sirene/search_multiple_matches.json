@@ -1,0 +1,27 @@
+{
+  "header": {"total": 2, "debut": 0, "nombre": 2},
+  "etablissements": [
+    {
+      "siret": "11111111100011",
+      "uniteLegale": {
+        "denominationUniteLegale": "MARTIN SARL",
+        "activitePrincipaleUniteLegale": "47.11B"
+      },
+      "adresseEtablissement": {
+        "codePostalEtablissement": "69001",
+        "libelleCommuneEtablissement": "LYON"
+      }
+    },
+    {
+      "siret": "22222222200022",
+      "uniteLegale": {
+        "denominationUniteLegale": "MARTIN CONSULTING",
+        "activitePrincipaleUniteLegale": "62.01Z"
+      },
+      "adresseEtablissement": {
+        "codePostalEtablissement": "69002",
+        "libelleCommuneEtablissement": "LYON"
+      }
+    }
+  ]
+}

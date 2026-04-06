@@ -1,0 +1,17 @@
+{
+  "uniteLegale": {
+    "siren": "123456789",
+    "denominationUniteLegale": "MA SOCIETE SAS",
+    "activitePrincipaleUniteLegale": "62.01Z",
+    "etablissementSiege": {
+      "siret": "12345678900012",
+      "adresseEtablissement": {
+        "numeroVoieEtablissement": "12",
+        "typeVoieEtablissement": "RUE",
+        "libelleVoieEtablissement": "DE LA PAIX",
+        "codePostalEtablissement": "75001",
+        "libelleCommuneEtablissement": "PARIS"
+      }
+    }
+  }
+}
