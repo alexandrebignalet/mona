@@ -127,8 +127,8 @@ override suspend fun lookupBySiren(siren: Siren): DomainResult<SireneResult> =
                 DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
             }
         }
-    } catch (e: SireneTokenRefreshException) {
-        DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
+    } catch (e: Exception) {
+        DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Request failed"))
     }
 ```
 
@@ -203,7 +203,7 @@ The old `parseSirenResponse` method is no longer called and should be removed.
 | SIREN not found | 200 | `[]` (empty) | `DomainResult.Err(DomainError.SirenNotFound(siren))` |
 | `etablissements` key missing | 200 | absent | `DomainResult.Err(DomainError.SirenNotFound(siren))` — treated as empty |
 | API error | 500, 503, etc. | — | `DomainResult.Err(DomainError.SireneLookupFailed("HTTP {status}: {body}"))` |
-| Token expired | — | — | `DomainResult.Err(DomainError.SireneLookupFailed("Token refresh failed: ..."))` |
+| Auth error (invalid API key) | 401 | — | `DomainResult.Err(DomainError.SireneLookupFailed("HTTP 401: ..."))` |
 | Malformed JSON | 200 | — | `DomainResult.Err(DomainError.SireneLookupFailed("Parse error: ..."))` |
 
 ---
@@ -282,7 +282,7 @@ SireneScenario.LookupCeased -> SireneHttpResponse(200, loadFixture("sirene/looku
 | `lookupBySiren maps manufacturing NAF code to BIC_VENTE` | Update inline JSON to `/siret` format. |
 | `lookupBySiren maps legal services NAF code to BNC` | Update inline JSON to `/siret` format. |
 | `lookupBySiren returns null activityType when NAF code absent` | Update inline JSON to `/siret` format. |
-| `lookupBySiren propagates token refresh failure` | Unchanged — exception handling is the same. |
+| `lookupBySiren propagates token refresh failure` | **Remove** — no longer applicable with API key auth. |
 
 ### 7.6 `SireneApiContractTest` Updates
 
