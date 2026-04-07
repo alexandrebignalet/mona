@@ -790,7 +790,7 @@ Free, public API. Used during onboarding to validate SIREN and auto-fill busines
 
 - **Sending:** HTTP API call with PDF attachment
 - **Bounce detection:** Webhook endpoint receives delivery status events. On bounce, invoice stays `DRAFT` and user is notified
-- **Sender address:** `factures@mona-app.fr` (configurable)
+- **Sender address:** `factures@heymona.fr` (configurable)
 
 ### Claude Sonnet API
 

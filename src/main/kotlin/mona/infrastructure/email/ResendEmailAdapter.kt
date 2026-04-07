@@ -63,7 +63,7 @@ class ResendEmailAdapter internal constructor(
     private val log = LoggerFactory.getLogger(ResendEmailAdapter::class.java)
 
     companion object {
-        const val DEFAULT_SENDER = "factures@mona-app.fr"
+        const val DEFAULT_SENDER = "factures@heymona.fr"
         private const val RESEND_API_URL = "https://api.resend.com/emails"
 
         fun fromEnv(senderAddress: String = DEFAULT_SENDER): ResendEmailAdapter =

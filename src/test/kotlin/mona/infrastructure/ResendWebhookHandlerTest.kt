@@ -42,7 +42,7 @@ private fun computeSignature(
 private fun bouncePayload(
     subject: String = "Facture F-2026-03-001",
     to: String = "client@example.com",
-): String = """{"type":"email.bounced","data":{"email_id":"abc","from":"factures@mona-app.fr","to":["$to"],"subject":"$subject"}}"""
+): String = """{"type":"email.bounced","data":{"email_id":"abc","from":"factures@heymona.fr","to":["$to"],"subject":"$subject"}}"""
 
 class ResendWebhookHandlerTest {
     private lateinit var server: HttpServer
