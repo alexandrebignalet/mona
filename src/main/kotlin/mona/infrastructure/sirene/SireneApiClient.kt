@@ -125,15 +125,17 @@ class SireneApiClient internal constructor(
             // NAF code and NIC come from the most recent period (index 0)
             val currentPeriod = uniteLegale["periodesUniteLegale"]?.jsonArray?.firstOrNull()?.jsonObject
             val nafCode = currentPeriod?.get("activitePrincipaleUniteLegale")?.jsonPrimitive?.content
-            val nicSiege = currentPeriod?.get("nicSiegeUniteLegale")?.jsonPrimitive?.content
-                ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing nicSiegeUniteLegale in response"))
+            val nicSiege =
+                currentPeriod?.get("nicSiegeUniteLegale")?.jsonPrimitive?.content
+                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing nicSiegeUniteLegale in response"))
             val siretValue = sirenValue + nicSiege
+            // /siren endpoint does not return address; use /siret if needed
             DomainResult.Ok(
                 SireneResult(
                     legalName = legalName,
                     siren = Siren(sirenValue),
                     siret = Siret(siretValue),
-                    address = null, // /siren endpoint does not return address; use /siret if needed
+                    address = null,
                     activityType = nafCode?.let { nafToActivityType(it) },
                 ),
             )

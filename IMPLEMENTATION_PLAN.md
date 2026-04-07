@@ -6,11 +6,11 @@ This plan is ordered by dependency: each item builds on what came before. Items 
 
 ## Completed Phases
 
-Phases 1.1–22, 21 done. See git log for details.
+Phases 1–23 complete. See git log for details.
 
 > **Pending operations (not code — run manually):**
 >
-> 1. **SIRENE secrets rotation:**
+> 1. **SIRENE secrets rotation** (after Phase 24 is deployed):
 >    ```bash
 >    fly secrets set SIRENE_CLIENT_ID=xxx SIRENE_CLIENT_SECRET=xxx -a mona-late-tree-7299
 >    fly secrets unset SIRENE_API_KEY -a mona-late-tree-7299
@@ -23,99 +23,73 @@ Phases 1.1–22, 21 done. See git log for details.
 
 ---
 
+## Phase 24 — SIRENE Lookup Fix + OAuth2 Wiring
+
+**What:** Fix two gaps in `SireneApiClient.kt` that cause 4 failing integration tests. Both gaps are in the same file and are implemented together to avoid conflicts.
+
+**Layer:** Infrastructure (`src/main/kotlin/mona/infrastructure/sirene/`)
+
+**Spec refs:** `specs/sirene-lookup-fix.md`, `specs/sirene-oauth-spec.md`
+
 ---
 
-## Phase 23 — Integration Test Suite ✅ COMPLETED
+### 24.1 — Lookup Fix: Replace `/siren/{siren}` with `/siret` Search
 
-**What:** Create the `mona.integration` test package with 26 end-to-end use-case tests. Tests exercise real infrastructure (in-memory SQLite, PDFBox, AES crypto) but bypass Telegram and Claude. External HTTP APIs (Sirene, Resend) use canned JSON fixtures. Each test invokes a use case directly with structured inputs, then asserts DB state, collected messages, dispatched events, and generated PDF bytes.
+**Problem:** `lookupBySiren()` calls `GET /siren/{siren}`, which returns no establishment-level data. `parseSirenResponse()` always returns `address = null`. Four tests currently fail because they assert a populated address, a valid SIRET, and correct ActivityType mapping — none of which can pass with the old endpoint.
 
-**Layer:** Test (`src/test/kotlin/mona/integration/`). No production code changes expected (unless HTTP executor interfaces need extracting for testability).
+**Changes to `SireneApiClient.kt`:**
 
-**Spec ref:** `specs/integration-tests-spec.md` (entire document).
+- Rewrite `lookupBySiren()` to call `GET $baseUrl/siret?q=siren:{siren}%20AND%20etablissementSiege:true&nombre=1` (URL-encode the `q` parameter value via `URLEncoder.encode(..., StandardCharsets.UTF_8)`).
+- Remove the `response.statusCode == 404 -> SirenNotFound` branch. The `/siret` search never returns 404 for "not found" — it returns HTTP 200 with `etablissements: []`. The new "not found" check is inside `parseLookupResponse` when `etablissements` is null or empty.
+- Add private method `parseLookupResponse(body: String, requestedSiren: Siren): DomainResult<SireneResult>` that reads `etablissements[0]`, extracts `siret`, `uniteLegale`, and `adresseEtablissement`, and delegates to existing `extractLegalName`, `parseAddress`, and `nafToActivityType` helpers. Empty array → `DomainResult.Err(DomainError.SirenNotFound(siren))`. Missing `siret` or `uniteLegale` keys → `DomainResult.Err(DomainError.SireneLookupFailed(...))`.
+- Delete `parseSirenResponse()` entirely.
 
-### 23.1 — Shared Fixtures and Test Base
+**Changes to test fixtures:**
 
-Create `src/test/kotlin/mona/integration/` with shared infrastructure:
+- `src/test/resources/fixtures/sirene/lookup_success.json` — replace with `/siret` response format matching `search_single_match.json` structure (with `etablissements[]`, `uniteLegale`, `adresseEtablissement`, NAF code `62.01Z`, siret `12345678900012`).
+- `src/test/resources/fixtures/sirene/lookup_not_found.json` — replace with HTTP-200 empty-list format: `{ "header": {"total":0,"debut":0,"nombre":0}, "etablissements": [] }`.
+- `src/test/resources/fixtures/sirene/lookup_ceased.json` — replace with same HTTP-200 empty-list format (ceased treated as not found per spec).
 
-- **`IntegrationTestBase.kt`** — Abstract base class providing:
-  - `TestDb`: in-memory SQLite via Exposed, fresh schema per test class, torn down after
-  - All Exposed-backed repository implementations wired to `TestDb`
-  - `FakeMessagingPort`: in-memory `MessagingPort` collector with `lastMessage()`, `lastDocument()`, `allMessages()` assertion helpers
-  - `FakeSireneHttpExecutor`: returns canned JSON from `src/test/resources/fixtures/sirene/`, configurable per test (success, not found, ceased, multiple, malformed, IOException)
-  - `FakeResendHttpExecutor`: returns canned JSON from `src/test/resources/fixtures/resend/`, configurable (success, bounce, rate limit, invalid email)
-  - `TestCryptoPort`: real `IbanCryptoAdapter` with hardcoded test AES key
-  - `TestEventCollector`: captures dispatched domain events for assertion
-  - Real `PdfGenerator` (PDFBox) — no mock
-  - `SireneApiClient` wired with `FakeSireneHttpExecutor`
-  - `ResendEmailAdapter` wired with `FakeResendHttpExecutor`
-  - Helper methods: `createTestUser()`, `createTestClient()`, `createTestInvoice(status)`
-  - Pre-built domain objects: `TestUser` (fully onboarded with SIREN, SIRET, email, IBAN, activityType=BIC_SERVICE), `TestUserMinimal` (only telegramId), `TestClient` (linked to TestUser, has email, address, SIRET)
+**Changes to `IntegrationTestBase.kt`:**
 
-- **Fixture files** in `src/test/resources/fixtures/`:
-  - `sirene/`: `lookup_success.json`, `lookup_not_found.json`, `lookup_ceased.json`, `search_single_match.json`, `search_multiple_matches.json`, `search_no_match.json`, `search_malformed.json`
-  - `resend/`: `send_success.json`, `send_rate_limited.json`, `send_invalid_email.json`
+- In `FakeSireneHttpExecutor`, change `SireneScenario.LookupNotFound` and `SireneScenario.LookupCeased` response status from `404` to `200`.
 
-**Acceptance criteria:**
-- `IntegrationTestBase` compiles and can be extended by test classes
-- Fixture JSON files are valid and match the real API response shapes
-- `FakeMessagingPort`, `FakeSireneHttpExecutor`, `FakeResendHttpExecutor`, `TestEventCollector` are reusable across all test classes
-- If `SireneApiClient` or `ResendEmailAdapter` do not already accept an injectable HTTP executor, extract the interface at the adapter boundary (infrastructure layer only)
+---
 
-### 23.2 — Command Scenario Tests (15 test classes)
+### 24.2 — OAuth2 Wiring: Replace API Key with Token Provider
 
-| # | Test class | Package | Scenarios | Key assertions |
-|---|-----------|---------|-----------|----------------|
-| 1 | `SearchSirenTest` | `onboarding/` | 5: single match, multiple matches, no match, malformed response, API error | Sirene fixture switching, `DomainResult.Ok`/`Err` |
-| 2 | `LookupSirenTest` | `onboarding/` | 4: valid SIREN, not found, ceased, user already has SIREN | User fields populated from Sirene, DB state |
-| 3 | `SetupProfileTest` | `onboarding/` | 8: email, address, IBAN, activity type, periodicity, payment delay, name, multi-field | IBAN encrypted via `TestCryptoPort`, all fields persisted |
-| 4 | `FinalizeInvoiceTest` | `onboarding/` | 3: with IBAN, without IBAN, not a draft | PDF bytes non-empty, IBAN presence in PDF text |
-| 5 | `CreateInvoiceTest` | `invoicing/` | 8: happy path, existing client, multi-line, duplicate warning, sequential numbering, cross-month, custom delay, activity override | `F-YYYY-MM-NNN` format, `Cents` arithmetic, client auto-creation |
-| 6 | `SendInvoiceTest` | `invoicing/` | 6: happy path, no client email, email fails, not Draft, with IBAN, without IBAN | Status=Sent, `InvoiceSent` event, email via `FakeResendHttpExecutor` |
-| 7 | `UpdateDraftTest` | `invoicing/` | 5: update items, change client, update date, not a draft, partial update | PDF regenerated, DB fields match |
-| 8 | `DeleteDraftTest` | `invoicing/` | 3: happy path, not a draft, number gap handling | `DraftDeleted` event, invoice removed from DB |
-| 9 | `CancelInvoiceTest` | `invoicing/` | 5: happy path, credit note numbering, cancel draft, cancel cancelled, amount match | Credit note `A-YYYY-MM-NNN`, `InvoiceCancelled` event |
-| 10 | `CorrectInvoiceTest` | `invoicing/` | 4: happy path, different amount, different client, numbering | Original cancelled + credit note + new draft, 2 PDFs |
-| 11 | `MarkPaidTest` | `payment/` | 5: sent, overdue, draft, already paid, all payment methods | Status=Paid, `InvoicePaid` event, `paidAt`+`paymentMethod` stored |
-| 12 | `UpdateClientTest` | `client/` | 5: update email, rename, not found, ambiguous, multi-field | DB state, `Ambiguous(matches)` result |
-| 13 | `ConfigureSettingTest` | `settings/` | 3: confirm_before_create true/false, default_payment_delay | User settings persisted |
-| 14 | `DeleteAccountTest` | `gdpr/` | 3: full deletion, no data, anonymized invoices preserved | FK-aware deletion order, invoices anonymized not deleted |
-| 15 | `ExportDataTest` | `gdpr/` | 3: full export, empty account, IBAN decryption | CSV bytes, PDF bytes, profile JSON with plaintext IBAN |
+**Problem:** `RealSireneHttpExecutor` uses a static `X-INSEE-Api-Key-Integration` header sourced from `SIRENE_API_KEY`. `SireneTokenProvider` was implemented but is not yet wired into the executor. `fromEnv()` still reads `SIRENE_API_KEY`.
 
-### 23.3 — Query Scenario Tests (5 test classes)
+**Changes to `SireneApiClient.kt`:**
 
-| # | Test class | Package | Scenarios | Key assertions |
-|---|-----------|---------|-----------|----------------|
-| 1 | `GetRevenueTest` | `revenue/` | 8: monthly, quarterly, yearly, empty, mixed activity, credit note deduction, previous period comparison, pending count | `PaidInvoiceSnapshot` read-model, cash basis (paidDate) |
-| 2 | `GetUnpaidTest` | `revenue/` | 3: has unpaid, all paid, mixed statuses | Only Sent+Overdue returned |
-| 3 | `ExportCsvTest` | `revenue/` | 3: happy path, no invoices, CSV column verification | CSV bytes, header row, correct columns |
-| 4 | `ListClientsTest` | `client/` | 3: has clients, no clients, client with no invoices | invoiceCount + totalAmount aggregation |
-| 5 | `ClientHistoryTest` | `client/` | 4: happy path, not found, ambiguous, many invoices | Ordered by date, `Ambiguous(matches)` |
+- Remove the `SireneApiKey` value class.
+- Rewrite `RealSireneHttpExecutor` to accept `SireneTokenProvider` instead of `SireneApiKey`. In `get(url)`, call `val token = tokenProvider.getToken()` and set `Authorization: Bearer $token` header.
+- Add 401 retry: if the API response is HTTP 401, call `tokenProvider.invalidate()` and send once more with a fresh token. If the retry is also 401, return the error.
+- Rewrite `fromEnv()` to read `SIRENE_CLIENT_ID` and `SIRENE_CLIENT_SECRET` env vars (both `error()` if absent), construct `SireneTokenProvider.create(clientId, clientSecret)`, and pass it to `RealSireneHttpExecutor`.
+- The `SireneTokenRefreshException` catch blocks in `lookupBySiren` and `searchByNameAndCity` already exist and require no changes.
 
-### 23.4 — Background Job Scenario Tests (6 test classes)
+**What does NOT change:**
 
-| # | Test class | Package | Scenarios | Key assertions |
-|---|-----------|---------|-----------|----------------|
-| 1 | `PaymentCheckInJobTest` | `payment/` | 3: invoice due yesterday, none due, multiple due | Messages sent via `FakeMessagingPort`, DB unchanged |
-| 2 | `OverdueTransitionJobTest` | `payment/` | 4: 3+ days overdue, 2 days (no transition), already overdue, multiple | Status=Overdue, `InvoiceOverdue` event, threshold = 3 days |
-| 3 | `CheckVatThresholdTest` | `urssaf/` | 4: 80% threshold, 95% threshold, below, already alerted | Alert recorded in DB, no duplicate alerts per year |
-| 4 | `UrssafReminderJobTest` | `urssaf/` | 5: 7 days before, 1 day before, not near, already reminded, quarterly user | Reminder messages, periodicity-aware deadline calculation |
-| 5 | `OnboardingRecoveryJobTest` | (root or `onboarding/`) | 4: day-1 reminder, day-3 reminder, has SIREN (skip), already reminded | Reminder recorded, no duplicates |
-| 6 | `HandleBouncedEmailTest` | (root or `email/`) | 2: bounce on sent invoice, invoice not found | Invoice reverts to Draft, user notified |
+- `SireneHttpExecutor` fun interface — already has `suspend fun get(url: String): SireneHttpResponse` with no `apiKey` parameter.
+- `SireneTokenProvider.kt` — already fully implemented; no changes needed.
+- All test classes — fake executors implement `SireneHttpExecutor` directly and never touch `SireneTokenProvider`.
 
-### 23.5 — HTTP Contract and PDF Tests
+---
 
-- **`SireneApiContractTest`** (`sirene/`): 9 scenarios testing `SireneApiClient` directly with fixture files — field mapping, address assembly, NAF-to-ActivityType, 404 handling, malformed JSON
-- **`SireneApiLiveTest`** (`sirene/`): 2 scenarios gated behind `LIVE_API_TESTS=true` env var — real lookup + real search against INSEE API
-- **`ResendApiContractTest`** (`email/`): 3 scenarios testing `ResendEmailAdapter` directly — success, invalid recipient, rate limit
-- **`PdfGenerationTest`** (`pdf/`): 7 scenarios with real PDFBox — valid PDF header (`%PDF`), key text extraction (invoice number, client, amounts), draft watermark, IBAN presence/absence, credit note ("Avoir"), multi-line-item
+### Acceptance Criteria
 
-**Result:** 30 test classes, 94 tests, all passing. `SireneApiLiveTest` skipped by default. `./gradlew build && ./gradlew ktlintCheck` pass.
+The following 4 currently-failing tests must pass:
 
-**Issues resolved:**
-- `SireneHttpResponse` and `ResendResult` are `internal` — fake executors made `internal`, suppressed property exposure warning
-- `InvoiceStatus.Paid` is a data class requiring `(date, method)` args — fixed in `DeleteAccountTest`, `MarkPaidTest`
-- `createTestInvoice` always uses `BASE_INSTANT` for `createdAt` — `OnboardingRecoveryJobTest` adapted to pre-seed both reminders for "no duplicate" scenario
-- URSSAF periodKey for April 30 deadline = "2026-03" (March period) — corrected test fixtures
+1. `SireneApiContractTest.lookupBySiren address is assembled correctly`
+2. `SireneApiContractTest.lookupBySiren NAF code maps to ActivityType`
+3. `SireneApiContractTest.lookupBySiren success SIRET is populated`
+4. `LookupSirenTest.valid SIREN populates user profile from Sirene`
+
+Additional checks:
+
+- All existing passing tests continue to pass (no regressions in search, 500-error, malformed-JSON, or token-refresh-exception scenarios).
+- `lookupBySiren` calls a URL containing `/siret?q=` and `siren:` in the query string.
+- `./gradlew build && ./gradlew ktlintCheck` both pass with zero errors.
 
 ---
 
