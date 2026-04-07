@@ -30,16 +30,23 @@ class SireneApiClientTest {
                         200,
                         """
                         {
-                          "uniteLegale": {
-                            "siren": "123456789",
-                            "denominationUniteLegale": "MA SOCIETE SAS",
-                            "periodesUniteLegale": [
-                              {
-                                "activitePrincipaleUniteLegale": "62.01Z",
-                                "nicSiegeUniteLegale": "00012"
+                          "header": {"total": 1, "debut": 0, "nombre": 1},
+                          "etablissements": [
+                            {
+                              "siret": "12345678900012",
+                              "uniteLegale": {
+                                "denominationUniteLegale": "MA SOCIETE SAS",
+                                "activitePrincipaleUniteLegale": "62.01Z"
+                              },
+                              "adresseEtablissement": {
+                                "numeroVoieEtablissement": "5",
+                                "typeVoieEtablissement": "RUE",
+                                "libelleVoieEtablissement": "DE LA PAIX",
+                                "codePostalEtablissement": "75001",
+                                "libelleCommuneEtablissement": "PARIS"
                               }
-                            ]
-                          }
+                            }
+                          ]
                         }
                         """.trimIndent(),
                     )
@@ -51,7 +58,8 @@ class SireneApiClientTest {
             assertEquals("123456789", data.siren.value)
             assertEquals("12345678900012", data.siret.value)
             assertEquals(ActivityType.BIC_SERVICE, data.activityType)
-            assertNull(data.address) // /siren endpoint does not return address
+            assertEquals("75001", data.address?.postalCode)
+            assertEquals("PARIS", data.address?.city)
         }
 
     @Test
@@ -64,17 +72,17 @@ class SireneApiClientTest {
                         200,
                         """
                         {
-                          "uniteLegale": {
-                            "siren": "987654321",
-                            "nomUniteLegale": "DUPONT",
-                            "prenomUsuelUniteLegale": "JEAN",
-                            "periodesUniteLegale": [
-                              {
-                                "activitePrincipaleUniteLegale": "86.21Z",
-                                "nicSiegeUniteLegale": "00023"
+                          "header": {"total": 1, "debut": 0, "nombre": 1},
+                          "etablissements": [
+                            {
+                              "siret": "98765432100023",
+                              "uniteLegale": {
+                                "nomUniteLegale": "DUPONT",
+                                "prenomUsuelUniteLegale": "JEAN",
+                                "activitePrincipaleUniteLegale": "86.21Z"
                               }
-                            ]
-                          }
+                            }
+                          ]
                         }
                         """.trimIndent(),
                     )
@@ -85,14 +93,17 @@ class SireneApiClientTest {
             assertEquals("JEAN DUPONT", data.legalName)
             assertEquals("98765432100023", data.siret.value)
             assertEquals(ActivityType.BNC, data.activityType)
-            assertNull(data.address) // /siren endpoint does not return address
+            assertNull(data.address)
         }
 
     @Test
-    fun `lookupBySiren returns Err SirenNotFound on 404`() =
+    fun `lookupBySiren returns Err SirenNotFound when etablissements is empty`() =
         runTest {
             val siren = Siren("000000001")
-            val adapter = client { _ -> SireneHttpResponse(404, """{"header":{"message":"404"}}""") }
+            val adapter =
+                client { _ ->
+                    SireneHttpResponse(200, """{"header":{"total":0,"debut":0,"nombre":0},"etablissements":[]}""")
+                }
             val result = adapter.lookupBySiren(siren)
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SirenNotFound>(result.error)
@@ -125,10 +136,14 @@ class SireneApiClientTest {
             val adapter =
                 client { url ->
                     capturedUrl = url
-                    SireneHttpResponse(404, "{}")
+                    SireneHttpResponse(200, """{"header":{"total":0,"debut":0,"nombre":0},"etablissements":[]}""")
                 }
             adapter.lookupBySiren(Siren("123456789"))
-            assertTrue(capturedUrl!!.contains("/siren/123456789"))
+            assertTrue(capturedUrl!!.contains("/siret?q="), "URL should contain /siret?q= but was: $capturedUrl")
+            assertTrue(
+                capturedUrl!!.contains("siren%3A123456789") || capturedUrl!!.contains("siren:123456789"),
+                "URL should contain siren:123456789 (encoded) but was: $capturedUrl",
+            )
         }
 
     @Test
@@ -199,16 +214,16 @@ class SireneApiClientTest {
                         200,
                         """
                         {
-                          "uniteLegale": {
-                            "siren": "111111111",
-                            "denominationUniteLegale": "BOULANGERIE DU COIN",
-                            "periodesUniteLegale": [
-                              {
-                                "activitePrincipaleUniteLegale": "10.71C",
-                                "nicSiegeUniteLegale": "00011"
+                          "header": {"total": 1, "debut": 0, "nombre": 1},
+                          "etablissements": [
+                            {
+                              "siret": "11111111100011",
+                              "uniteLegale": {
+                                "denominationUniteLegale": "BOULANGERIE DU COIN",
+                                "activitePrincipaleUniteLegale": "10.71C"
                               }
-                            ]
-                          }
+                            }
+                          ]
                         }
                         """.trimIndent(),
                     )
@@ -227,16 +242,16 @@ class SireneApiClientTest {
                         200,
                         """
                         {
-                          "uniteLegale": {
-                            "siren": "222222222",
-                            "denominationUniteLegale": "CABINET LEGALIS",
-                            "periodesUniteLegale": [
-                              {
-                                "activitePrincipaleUniteLegale": "69.10Z",
-                                "nicSiegeUniteLegale": "00022"
+                          "header": {"total": 1, "debut": 0, "nombre": 1},
+                          "etablissements": [
+                            {
+                              "siret": "22222222200022",
+                              "uniteLegale": {
+                                "denominationUniteLegale": "CABINET LEGALIS",
+                                "activitePrincipaleUniteLegale": "69.10Z"
                               }
-                            ]
-                          }
+                            }
+                          ]
                         }
                         """.trimIndent(),
                     )
@@ -255,15 +270,15 @@ class SireneApiClientTest {
                         200,
                         """
                         {
-                          "uniteLegale": {
-                            "siren": "333333333",
-                            "denominationUniteLegale": "SOCIETE SANS NAF",
-                            "periodesUniteLegale": [
-                              {
-                                "nicSiegeUniteLegale": "00033"
+                          "header": {"total": 1, "debut": 0, "nombre": 1},
+                          "etablissements": [
+                            {
+                              "siret": "33333333300033",
+                              "uniteLegale": {
+                                "denominationUniteLegale": "SOCIETE SANS NAF"
                               }
-                            ]
-                          }
+                            }
+                          ]
                         }
                         """.trimIndent(),
                     )

@@ -152,8 +152,8 @@ internal class FakeSireneHttpExecutor : SireneHttpExecutor {
         throwOnGet?.let { throw it }
         return when (scenario) {
             SireneScenario.LookupSuccess -> SireneHttpResponse(200, loadFixture("sirene/lookup_success.json"))
-            SireneScenario.LookupNotFound -> SireneHttpResponse(404, loadFixture("sirene/lookup_not_found.json"))
-            SireneScenario.LookupCeased -> SireneHttpResponse(404, loadFixture("sirene/lookup_ceased.json"))
+            SireneScenario.LookupNotFound -> SireneHttpResponse(200, loadFixture("sirene/lookup_not_found.json"))
+            SireneScenario.LookupCeased -> SireneHttpResponse(200, loadFixture("sirene/lookup_ceased.json"))
             SireneScenario.SearchSingleMatch -> SireneHttpResponse(200, loadFixture("sirene/search_single_match.json"))
             SireneScenario.SearchMultipleMatches ->
                 SireneHttpResponse(200, loadFixture("sirene/search_multiple_matches.json"))

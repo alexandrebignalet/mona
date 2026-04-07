@@ -1,6 +1,1 @@
-{
-  "header": {
-    "statut": 404,
-    "message": "Entreprise cessée ou fermée"
-  }
-}
+{ "header": {"total":0,"debut":0,"nombre":0}, "etablissements": [] }

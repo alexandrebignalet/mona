@@ -29,27 +29,35 @@ internal fun interface SireneHttpExecutor {
     suspend fun get(url: String): SireneHttpResponse
 }
 
-@JvmInline
-internal value class SireneApiKey(val value: String)
-
 internal class RealSireneHttpExecutor(
-    private val sireneApiKey: SireneApiKey,
+    private val tokenProvider: SireneTokenProvider,
 ) : SireneHttpExecutor {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     override suspend fun get(url: String): SireneHttpResponse {
-        return withContext(Dispatchers.IO) {
+        val response = doGet(url, tokenProvider.getToken())
+        if (response.statusCode == 401) {
+            tokenProvider.invalidate()
+            return doGet(url, tokenProvider.getToken())
+        }
+        return response
+    }
+
+    private suspend fun doGet(
+        url: String,
+        token: String,
+    ): SireneHttpResponse =
+        withContext(Dispatchers.IO) {
             val request =
                 HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("X-INSEE-Api-Key-Integration", sireneApiKey.value)
+                    .header("Authorization", "Bearer $token")
                     .header("Accept", "application/json")
                     .GET()
                     .build()
             val response = client.send(request, BodyHandlers.ofString())
             SireneHttpResponse(response.statusCode(), response.body())
         }
-    }
 }
 
 class SireneApiClient internal constructor(
@@ -64,24 +72,26 @@ class SireneApiClient internal constructor(
         private val json = Json { ignoreUnknownKeys = true }
 
         fun fromEnv(): SireneApiClient {
-            val sireneApiKey =
-                SireneApiKey(
-                    System.getenv("SIRENE_API_KEY") ?: error("SIRENE_API_KEY environment variable is not set"),
-                )
-
-            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(sireneApiKey))
+            val clientId =
+                System.getenv("SIRENE_CLIENT_ID")
+                    ?: error("SIRENE_CLIENT_ID environment variable is not set")
+            val clientSecret =
+                System.getenv("SIRENE_CLIENT_SECRET")
+                    ?: error("SIRENE_CLIENT_SECRET environment variable is not set")
+            val tokenProvider = SireneTokenProvider.create(clientId, clientSecret)
+            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(tokenProvider))
         }
     }
 
     override suspend fun lookupBySiren(siren: Siren): DomainResult<SireneResult> =
         try {
-            val url = "$baseUrl/siren/${siren.value}"
+            val rawQuery = "siren:${siren.value} AND etablissementSiege:true"
+            val encodedQuery = URLEncoder.encode(rawQuery, StandardCharsets.UTF_8)
+            val url = "$baseUrl/siret?q=$encodedQuery&nombre=1"
             val response = httpExecutor.get(url)
             when {
-                response.statusCode == 200 -> parseSirenResponse(response.body, siren)
-                response.statusCode == 404 -> DomainResult.Err(DomainError.SirenNotFound(siren))
+                response.statusCode == 200 -> parseLookupResponse(response.body, siren)
                 else -> {
-                    // L10
                     log.warn("SIRENE lookup failed for {}: HTTP {}", siren.value, response.statusCode)
                     DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
                 }
@@ -111,37 +121,39 @@ class SireneApiClient internal constructor(
             DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
         }
 
-    private fun parseSirenResponse(
+    private fun parseLookupResponse(
         body: String,
         requestedSiren: Siren,
-    ): DomainResult<SireneResult> =
-        try {
+    ): DomainResult<SireneResult> {
+        return try {
             val root = json.parseToJsonElement(body).jsonObject
-            val uniteLegale =
-                root["uniteLegale"]?.jsonObject
+            val etablissements = root["etablissements"]?.jsonArray
+            if (etablissements == null || etablissements.isEmpty()) {
+                return DomainResult.Err(DomainError.SirenNotFound(requestedSiren))
+            }
+            val etab = etablissements[0].jsonObject
+            val siretValue =
+                etab["siret"]?.jsonPrimitive?.content
+                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing siret in response"))
+            val ul =
+                etab["uniteLegale"]?.jsonObject
                     ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing uniteLegale in response"))
-            val sirenValue = uniteLegale["siren"]?.jsonPrimitive?.content ?: requestedSiren.value
-            val legalName = extractLegalName(uniteLegale)
-            // NAF code and NIC come from the most recent period (index 0)
-            val currentPeriod = uniteLegale["periodesUniteLegale"]?.jsonArray?.firstOrNull()?.jsonObject
-            val nafCode = currentPeriod?.get("activitePrincipaleUniteLegale")?.jsonPrimitive?.content
-            val nicSiege =
-                currentPeriod?.get("nicSiegeUniteLegale")?.jsonPrimitive?.content
-                    ?: return DomainResult.Err(DomainError.SireneLookupFailed("Missing nicSiegeUniteLegale in response"))
-            val siretValue = sirenValue + nicSiege
-            // /siren endpoint does not return address; use /siret if needed
+            val legalName = extractLegalName(ul)
+            val nafCode = ul["activitePrincipaleUniteLegale"]?.jsonPrimitive?.content
+            val address = etab["adresseEtablissement"]?.jsonObject?.let { parseAddress(it) }
             DomainResult.Ok(
                 SireneResult(
                     legalName = legalName,
-                    siren = Siren(sirenValue),
+                    siren = Siren(siretValue.take(9)),
                     siret = Siret(siretValue),
-                    address = null,
+                    address = address,
                     activityType = nafCode?.let { nafToActivityType(it) },
                 ),
             )
         } catch (e: Exception) {
             DomainResult.Err(DomainError.SireneLookupFailed("Parse error: ${e.message}"))
         }
+    }
 
     private fun parseSearchResponse(body: String): DomainResult<List<SireneResult>> =
         try {
@@ -200,8 +212,8 @@ class SireneApiClient internal constructor(
         )
     }
 
-    private fun nafToActivityType(nafCode: String): ActivityType =
-        when {
+    private fun nafToActivityType(nafCode: String): ActivityType {
+        return when {
             nafCode.startsWith("69.1") -> ActivityType.BNC
             nafCode.startsWith("69.2") -> ActivityType.BNC
             nafCode.startsWith("71.") -> ActivityType.BNC
@@ -221,4 +233,5 @@ class SireneApiClient internal constructor(
                 }
             }
         }
+    }
 }

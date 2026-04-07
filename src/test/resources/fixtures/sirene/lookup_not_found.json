@@ -1,6 +1,1 @@
-{
-  "header": {
-    "statut": 404,
-    "message": "Aucun élément trouvé lié à ce critère"
-  }
-}
+{ "header": {"total":0,"debut":0,"nombre":0}, "etablissements": [] }

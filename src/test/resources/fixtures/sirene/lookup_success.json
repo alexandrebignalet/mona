@@ -1,17 +1,19 @@
 {
-  "uniteLegale": {
-    "siren": "123456789",
-    "denominationUniteLegale": "MA SOCIETE SAS",
-    "activitePrincipaleUniteLegale": "62.01Z",
-    "etablissementSiege": {
+  "header": {"total": 1, "debut": 0, "nombre": 1},
+  "etablissements": [
+    {
       "siret": "12345678900012",
+      "uniteLegale": {
+        "denominationUniteLegale": "DUPONT CONSEIL SAS",
+        "activitePrincipaleUniteLegale": "62.01Z"
+      },
       "adresseEtablissement": {
-        "numeroVoieEtablissement": "12",
+        "numeroVoieEtablissement": "5",
         "typeVoieEtablissement": "RUE",
         "libelleVoieEtablissement": "DE LA PAIX",
         "codePostalEtablissement": "75001",
         "libelleCommuneEtablissement": "PARIS"
       }
     }
-  }
+  ]
 }
