@@ -289,15 +289,15 @@ class SireneApiClientTest {
         }
 
     @Test
-    fun `lookupBySiren propagates token refresh failure as SireneLookupFailed`() =
+    fun `lookupBySiren propagates network exception as SireneLookupFailed`() =
         runTest {
             val adapter =
                 SireneApiClient(
-                    httpExecutor = { _ -> throw mona.infrastructure.sirene.SireneTokenRefreshException("Token refresh failed: HTTP 401") },
+                    httpExecutor = { _ -> throw java.io.IOException("Connection refused") },
                 )
             val result = adapter.lookupBySiren(Siren("123456789"))
             assertIs<DomainResult.Err>(result)
             assertIs<DomainError.SireneLookupFailed>(result.error)
-            assertTrue((result.error as DomainError.SireneLookupFailed).reason.contains("Token refresh failed"))
+            assertTrue((result.error as DomainError.SireneLookupFailed).reason.contains("Connection refused"))
         }
 }

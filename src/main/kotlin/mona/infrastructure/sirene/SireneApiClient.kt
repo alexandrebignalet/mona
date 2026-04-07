@@ -23,6 +23,9 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.nio.charset.StandardCharsets
 
+@JvmInline
+internal value class SireneApiKey(val value: String)
+
 internal data class SireneHttpResponse(val statusCode: Int, val body: String)
 
 internal fun interface SireneHttpExecutor {
@@ -30,28 +33,16 @@ internal fun interface SireneHttpExecutor {
 }
 
 internal class RealSireneHttpExecutor(
-    private val tokenProvider: SireneTokenProvider,
+    private val apiKey: SireneApiKey,
 ) : SireneHttpExecutor {
     private val client: HttpClient = HttpClient.newHttpClient()
 
-    override suspend fun get(url: String): SireneHttpResponse {
-        val response = doGet(url, tokenProvider.getToken())
-        if (response.statusCode == 401) {
-            tokenProvider.invalidate()
-            return doGet(url, tokenProvider.getToken())
-        }
-        return response
-    }
-
-    private suspend fun doGet(
-        url: String,
-        token: String,
-    ): SireneHttpResponse =
+    override suspend fun get(url: String): SireneHttpResponse =
         withContext(Dispatchers.IO) {
             val request =
                 HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("Authorization", "Bearer $token")
+                    .header("X-INSEE-Api-Key-Integration", apiKey.value)
                     .header("Accept", "application/json")
                     .GET()
                     .build()
@@ -72,14 +63,10 @@ class SireneApiClient internal constructor(
         private val json = Json { ignoreUnknownKeys = true }
 
         fun fromEnv(): SireneApiClient {
-            val clientId =
-                System.getenv("SIRENE_CLIENT_ID")
-                    ?: error("SIRENE_CLIENT_ID environment variable is not set")
-            val clientSecret =
-                System.getenv("SIRENE_CLIENT_SECRET")
-                    ?: error("SIRENE_CLIENT_SECRET environment variable is not set")
-            val tokenProvider = SireneTokenProvider.create(clientId, clientSecret)
-            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(tokenProvider))
+            val apiKey =
+                System.getenv("SIRENE_API_KEY")
+                    ?: error("SIRENE_API_KEY environment variable is not set")
+            return SireneApiClient(httpExecutor = RealSireneHttpExecutor(SireneApiKey(apiKey)))
         }
     }
 
@@ -96,8 +83,8 @@ class SireneApiClient internal constructor(
                     DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
                 }
             }
-        } catch (e: SireneTokenRefreshException) {
-            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
+        } catch (e: Exception) {
+            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Request failed"))
         }
 
     override suspend fun searchByNameAndCity(
@@ -117,8 +104,8 @@ class SireneApiClient internal constructor(
                 response.statusCode == 404 -> DomainResult.Ok(emptyList())
                 else -> DomainResult.Err(DomainError.SireneLookupFailed("HTTP ${response.statusCode}: ${response.body}"))
             }
-        } catch (e: SireneTokenRefreshException) {
-            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Token refresh failed"))
+        } catch (e: Exception) {
+            DomainResult.Err(DomainError.SireneLookupFailed(e.message ?: "Request failed"))
         }
 
     private fun parseLookupResponse(
